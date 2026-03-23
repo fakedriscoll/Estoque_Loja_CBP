@@ -45,6 +45,7 @@ const currentInventoryName = document.getElementById('current-inventory-name');
 document.addEventListener('DOMContentLoaded', () => {
     setupAuthListeners();
     checkAuthState();
+    setupFilters(); // Adicionado: Configura os filtros de busca e categoria
 });
 
 // ===== AUTENTICAÇÃO =====
@@ -77,8 +78,6 @@ function setupAuthListeners() {
         console.log("Tentando login para:", email);
         
         try {
-            // Caso especial para o primeiro login do admin se ele ainda não existir no Auth
-            // Senha do admin alterada para 'admin123' para cumprir o requisito de 6 caracteres do Firebase
             if (username === 'admin' && password === 'admin123') {
                 console.log("Verificando conta admin...");
                 try {
@@ -95,7 +94,6 @@ function setupAuthListeners() {
             
             let userDoc = await db.collection('users').doc(user.uid).get();
             
-            // Se for o admin e o documento não existir no Firestore, cria agora
             if (!userDoc.exists && username === 'admin') {
                 console.log("Criando documento admin no Firestore...");
                 await db.collection('users').doc(user.uid).set({
@@ -151,7 +149,6 @@ function setupAuthListeners() {
             const user = userCredential.user;
             console.log("Usuário criado no Auth. UID:", user.uid);
 
-            // Criar documento do usuário no Firestore
             console.log("Salvando dados no Firestore...");
             await db.collection('users').doc(user.uid).set({
                 username: username,
@@ -191,7 +188,6 @@ function checkAuthState() {
 async function handleLoginSuccess() {
     document.getElementById('login-screen').style.display = 'none';
     
-    // Se for o primeiro acesso do admin, garante que ele exista no Firestore
     if (currentUser.uid && currentUser.role === 'admin') {
         await db.collection('users').doc(currentUser.uid).set({
             username: 'admin',
@@ -270,15 +266,25 @@ window.selectInventory = (type) => {
     selectionScreen.style.display = 'none';
     managementScreen.style.display = 'flex';
     
+    // Configura o mês atual apenas uma vez ao selecionar o estoque
+    setCurrentMonth();
+
     // Escutar mudanças em tempo real
     db.collection(`inventory_${type}`).onSnapshot(snapshot => {
         inventory = [];
         snapshot.forEach(doc => {
             inventory.push({ id: doc.id, ...doc.data() });
         });
-        renderInventory();
+        
+        // Aplica filtros atuais ao renderizar após mudança no banco
+        filterInventory();
         updateStats();
-        setCurrentMonth();
+        
+        // Se o relatório estiver visível, atualiza os gráficos automaticamente
+        const reportSection = document.getElementById('relatorio');
+        if (reportSection && reportSection.style.display === 'block') {
+            updateReportCharts();
+        }
     });
 };
 
@@ -288,6 +294,26 @@ btnBackSelection.addEventListener('click', (e) => {
     managementScreen.style.display = 'none';
     updateSelectionCounts();
 });
+
+// Funções de Filtro e Busca
+function setupFilters() {
+    searchInput.addEventListener('input', filterInventory);
+    categoryFilter.addEventListener('change', filterInventory);
+}
+
+function filterInventory() {
+    const searchTerm = searchInput.value.toLowerCase();
+    const selectedCategory = categoryFilter.value;
+
+    const filtered = inventory.filter(item => {
+        const matchesSearch = item.name.toLowerCase().includes(searchTerm) || 
+                              item.category.toLowerCase().includes(searchTerm);
+        const matchesCategory = selectedCategory === '' || item.category === selectedCategory;
+        return matchesSearch && matchesCategory;
+    });
+
+    renderInventory(filtered);
+}
 
 function renderInventory(items = inventory) {
     inventoryBody.innerHTML = '';
@@ -412,16 +438,21 @@ window.openSalesModal = (id) => {
 };
 
 // ===== RELATÓRIOS E EXPORTAÇÃO =====
-let salesByProductChart, monthlySalesChart;
+let salesByProductChart;
 
 function setCurrentMonth() {
     const today = new Date();
     const year = today.getFullYear();
     const month = String(today.getMonth() + 1).padStart(2, '0');
-    reportMonth.value = `${year}-${month}`;
+    // Só altera o valor se ele estiver vazio ou se for a primeira carga
+    if (!reportMonth.value) {
+        reportMonth.value = `${year}-${month}`;
+    }
 }
 
 function updateReportCharts() {
+    if (!reportMonth.value) return;
+    
     const selectedDate = new Date(reportMonth.value + '-01');
     const productNames = inventory.map(p => p.name);
     const productSales = inventory.map(p => {
@@ -432,13 +463,20 @@ function updateReportCharts() {
         }).reduce((sum, s) => sum + s.quantity, 0);
     });
 
-    const ctx1 = document.getElementById('salesByProductChart').getContext('2d');
+    const canvas = document.getElementById('salesByProductChart');
+    if (!canvas) return;
+    
+    const ctx1 = canvas.getContext('2d');
     if (salesByProductChart) salesByProductChart.destroy();
     salesByProductChart = new Chart(ctx1, {
         type: 'bar',
         data: {
             labels: productNames,
             datasets: [{ label: 'Vendas', data: productSales, backgroundColor: '#003399' }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false
         }
     });
     updateReportSummary(selectedDate);
@@ -484,15 +522,19 @@ document.querySelectorAll('.nav-link').forEach(link => {
     link.addEventListener('click', (e) => {
         e.preventDefault();
         const target = link.getAttribute('href');
-        if (target === '#') return;
+        if (target === '#' || !target) return;
+        
         document.querySelectorAll('.section-content').forEach(s => s.style.display = 'none');
-        document.querySelector(target).style.display = 'block';
-        if (target === '#relatorio') updateReportCharts();
+        const targetSection = document.querySelector(target);
+        if (targetSection) {
+            targetSection.style.display = 'block';
+            if (target === '#relatorio') updateReportCharts();
+        }
     });
 });
 
 // Fechar modais
 closeModals.forEach(c => c.onclick = () => { modal.style.display = 'none'; salesModal.style.display = 'none'; });
 window.onclick = (e) => { if (e.target == modal || e.target == salesModal) { modal.style.display = 'none'; salesModal.style.display = 'none'; } };
-btnAddProduct.onclick = () => { productForm.reset(); document.getElementById('product-id').value = ''; modal.style.display = 'block'; };
+btnAddProduct.onclick = () => { productForm.reset(); document.getElementById('product-id').value = ''; modalTitle.innerText = 'Novo Produto'; modal.style.display = 'block'; };
 reportMonth.onchange = updateReportCharts;
