@@ -509,17 +509,20 @@ tr:hover {
     height: 100%;
     background-color: rgba(0,0,0,0.5);
     animation: fadeIn 0.2s;
+    overflow-y: auto; /* Permite rolagem no fundo se necessário */
 }
 
 .modal-content {
     background-color: var(--white);
-    margin: 5% auto;
-    padding: 30px;
-    width: 90%;
+    margin: 2% auto; /* Reduzido de 5% para 2% para ganhar espaço */
+    padding: 25px; /* Reduzido de 30px para 25px */
+    width: 95%; /* Aumentado de 90% para 95% */
     max-width: 600px;
     border-radius: var(--border-radius);
     position: relative;
     box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    max-height: 95vh; /* Limita a altura do conteúdo */
+    overflow-y: auto; /* Adiciona rolagem interna se o conteúdo exceder a altura */
 }
 
 .close {
@@ -537,13 +540,13 @@ tr:hover {
 }
 
 .form-group {
-    margin-bottom: 20px;
+    margin-bottom: 15px; /* Reduzido de 20px para 15px */
 }
 
 .form-row {
     display: flex;
     gap: 15px;
-    margin-bottom: 20px;
+    margin-bottom: 15px; /* Reduzido de 20px para 15px */
 }
 
 .form-row .form-group {
