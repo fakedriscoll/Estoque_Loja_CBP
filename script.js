@@ -25,6 +25,7 @@ const lowStockCountEl = document.getElementById('low-stock-count');
 const totalSalesEl = document.getElementById('total-sales');
 const searchInput = document.getElementById('search-input');
 const categoryFilter = document.getElementById('category-filter');
+const brandFilter = document.getElementById('brand-filter');
 const btnAddProduct = document.getElementById('btn-add-product');
 const btnBackSelection = document.getElementById('btn-back-selection');
 const modal = document.getElementById('product-modal');
@@ -256,73 +257,38 @@ window.updateUserStatus = (uid, status) => {
 };
 
 window.deleteUser = (uid) => {
-    if (confirm('Deseja excluir este usuário?')) {
+    if (confirm('Tem certeza que deseja excluir este usuário?')) {
         db.collection('users').doc(uid).delete();
     }
 };
 
-// ===== EDIÇÃO DE USUÁRIO (APENAS ADMIN) =====
-window.openResetPasswordModal = (userId, username) => {
-    const userIdInput = document.getElementById('reset-user-id');
-    const editUsernameInput = document.getElementById('edit-username');
-    const newPassInput = document.getElementById('new-password');
-    const confirmPassInput = document.getElementById('confirm-password');
-    
-    if (userIdInput) userIdInput.value = userId;
-    if (editUsernameInput) editUsernameInput.value = username;
-    if (newPassInput) newPassInput.value = '';
-    if (confirmPassInput) confirmPassInput.value = '';
-    
-    if (resetPasswordModal) {
-        resetPasswordModal.style.display = 'block';
-    } else {
-        const modalEl = document.getElementById('reset-password-modal');
-        if (modalEl) modalEl.style.display = 'block';
-    }
+window.openResetPasswordModal = (uid, username) => {
+    const idInput = document.getElementById('reset-user-id');
+    const nameInput = document.getElementById('edit-username');
+    if (idInput) idInput.value = uid;
+    if (nameInput) nameInput.value = username;
+    if (resetPasswordModal) resetPasswordModal.style.display = 'block';
 };
 
 function setupResetPasswordListener() {
     if (resetPasswordForm) {
         resetPasswordForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const userId = document.getElementById('reset-user-id').value;
+            const uid = document.getElementById('reset-user-id').value;
             const newUsername = document.getElementById('edit-username').value.trim();
             const newPassword = document.getElementById('new-password').value;
             const confirmPassword = document.getElementById('confirm-password').value;
-            
-            // Validar nome de usuário
-            if (!newUsername) {
-                alert('O nome de usuário não pode estar vazio!');
+
+            if (newPassword && newPassword !== confirmPassword) {
+                alert('As senhas não coincidem!');
                 return;
             }
-            
-            // Se a senha foi preenchida, validar
-            if (newPassword || confirmPassword) {
-                if (newPassword !== confirmPassword) {
-                    alert('As senhas não coincidem!');
-                    return;
-                }
-                
-                if (newPassword.length < 6) {
-                    alert('A senha deve ter pelo menos 6 caracteres!');
-                    return;
-                }
-            }
-            
+
             try {
-                const updateData = {
-                    username: newUsername,
-                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                };
+                const updateData = { username: newUsername };
+                if (newPassword) updateData.password = newPassword;
                 
-                // Adicionar senha apenas se foi preenchida
-                if (newPassword) {
-                    updateData.password = newPassword;
-                    updateData.passwordUpdatedAt = firebase.firestore.FieldValue.serverTimestamp();
-                }
-                
-                await db.collection('users').doc(userId).update(updateData);
-                
+                await db.collection('users').doc(uid).update(updateData);
                 alert('Usuário atualizado com sucesso!');
                 if (resetPasswordModal) resetPasswordModal.style.display = 'none';
                 resetPasswordForm.reset();
@@ -333,99 +299,119 @@ function setupResetPasswordListener() {
     }
 }
 
-// ===== GESTÃO DE ESTOQUE (FIRESTORE) =====
-async function updateSelectionCounts() {
-    try {
-        const lojaSnap = await db.collection('inventory_loja').get();
-        const vitrineSnap = await db.collection('inventory_vitrine').get();
-        const lojaCountEl = document.getElementById('loja-count');
-        const vitrineCountEl = document.getElementById('vitrine-count');
-        if (lojaCountEl) lojaCountEl.innerText = `${lojaSnap.size} produtos`;
-        if (vitrineCountEl) vitrineCountEl.innerText = `${vitrineSnap.size} produtos`;
-    } catch (e) {}
-}
-
+// ===== GESTÃO DE ESTOQUE =====
 window.selectInventory = (type) => {
     currentInventoryType = type;
-    if (currentInventoryName) {
-        currentInventoryName.innerText = type === 'loja' ? 'LOJA OFICIAL' : 'VITRINE';
-    }
-    
     selectionScreen.style.display = 'none';
     managementScreen.style.display = 'flex';
     
-    db.collection(`inventory_${type}`).onSnapshot(snapshot => {
+    if (currentInventoryName) {
+        currentInventoryName.innerText = type === 'loja' ? 'ESTOQUE LOJA' : 'ESTOQUE VITRINE';
+    }
+    
+    loadInventory();
+    setCurrentMonth();
+};
+
+if (btnBackSelection) {
+    btnBackSelection.onclick = () => {
+        managementScreen.style.display = 'none';
+        selectionScreen.style.display = 'flex';
+        updateSelectionCounts();
+    };
+}
+
+async function updateSelectionCounts() {
+    const lojaSnap = await db.collection('inventory_loja').get();
+    const vitrineSnap = await db.collection('inventory_vitrine').get();
+    
+    const lojaCount = document.getElementById('loja-count');
+    const vitrineCount = document.getElementById('vitrine-count');
+    
+    if (lojaCount) lojaCount.innerText = `${lojaSnap.size} produtos`;
+    if (vitrineCount) vitrineCount.innerText = `${vitrineSnap.size} produtos`;
+}
+
+function loadInventory() {
+    db.collection(`inventory_${currentInventoryType}`).onSnapshot(snapshot => {
         inventory = [];
         snapshot.forEach(doc => {
             inventory.push({ id: doc.id, ...doc.data() });
         });
-        renderInventory();
-        updateStats();
-        setCurrentMonth();
-    });
-};
-
-if (btnBackSelection) {
-    btnBackSelection.addEventListener('click', (e) => {
-        e.preventDefault();
-        selectionScreen.style.display = 'flex';
-        managementScreen.style.display = 'none';
-        updateSelectionCounts();
+        updateInventoryTable();
+        if (document.getElementById('relatorio').style.display !== 'none') {
+            updateReportCharts();
+        }
     });
 }
 
-function renderInventory(items = inventory) {
+function updateInventoryTable() {
+    const searchTerm = searchInput.value.toLowerCase();
+    const category = categoryFilter.value;
+    const brand = brandFilter ? brandFilter.value : '';
+    
+    const filtered = inventory.filter(item => {
+        const matchesSearch = item.name.toLowerCase().includes(searchTerm) || 
+                             item.category.toLowerCase().includes(searchTerm);
+        const matchesCategory = category === '' || item.category === category;
+        const matchesBrand = brand === '' || item.brand === brand;
+        return matchesSearch && matchesCategory && matchesBrand;
+    });
+
+    // Ordenação alfabética pelo nome
+    filtered.sort((a, b) => a.name.localeCompare(b.name));
+    
+    renderInventory(filtered);
+    updateStats(filtered);
+}
+
+function renderInventory(items) {
     if (!inventoryBody) return;
     inventoryBody.innerHTML = '';
-    if (items.length === 0) {
-        inventoryBody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #999;">Nenhum produto encontrado</td></tr>';
-        return;
-    }
+    
     items.forEach(item => {
-        const status = getStatus(item.quantity, item.minQuantity);
-        const monthlySales = getSalesForMonth(item);
+        const status = item.quantity <= 0 ? 'empty' : (item.quantity <= (item.minQuantity || 5) ? 'low' : 'ok');
+        const statusText = item.quantity <= 0 ? 'Esgotado' : (item.quantity <= (item.minQuantity || 5) ? 'Baixo' : 'Normal');
+        
+        const salesMonth = item.sales ? item.sales.filter(s => {
+            const d = new Date(s.date);
+            const now = new Date();
+            return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+        }).reduce((sum, s) => sum + s.quantity, 0) : 0;
+
         const row = document.createElement('tr');
         row.innerHTML = `
-            <td><strong>${item.name}</strong></td>
+            <td>
+                <div style="font-weight: 600;">${item.name}${item.size ? ` (${item.size})` : ''}</div>
+                <div style="font-size: 0.75rem; color: #666;">${item.brand || 'Sem Marca'}</div>
+            </td>
             <td>${item.category}</td>
-            <td>R$ ${item.price ? item.price.toFixed(2) : '0.00'}</td>
+            <td>R$ ${(item.price || 0).toFixed(2)}</td>
             <td>${item.quantity}</td>
-            <td>${monthlySales}</td>
-            <td><span class="status-badge ${status.class}">${status.label}</span></td>
+            <td>${salesMonth}</td>
+            <td><span class="status-badge status-${status}">${statusText}</span></td>
             <td>
                 <button class="btn-sales" onclick="openSalesModal('${item.id}')" title="Registrar Venda"><i class="fas fa-shopping-cart"></i></button>
                 <button class="btn-edit" onclick="editProduct('${item.id}')" title="Editar"><i class="fas fa-edit"></i></button>
-                <button class="btn-delete" onclick="deleteProduct('${item.id}')" title="Deletar"><i class="fas fa-trash-alt"></i></button>
+                <button class="btn-delete" onclick="deleteProduct('${item.id}')" title="Excluir"><i class="fas fa-trash-alt"></i></button>
             </td>
         `;
         inventoryBody.appendChild(row);
     });
 }
 
-function getStatus(qty, min) {
-    if (qty <= 0) return { label: 'Esgotado', class: 'status-empty' };
-    if (qty <= min) return { label: 'Baixo Estoque', class: 'status-low' };
-    return { label: 'Disponível', class: 'status-ok' };
-}
-
-function getSalesForMonth(product) {
-    if (!product.sales) return 0;
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = today.getMonth();
+function updateStats(items) {
+    const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
+    const totalValue = items.reduce((sum, item) => sum + (item.quantity * (item.price || 0)), 0);
+    const lowStock = items.filter(item => item.quantity <= (item.minQuantity || 5)).length;
     
-    return product.sales.filter(sale => {
-        const saleDate = new Date(sale.date);
-        return saleDate.getFullYear() === year && saleDate.getMonth() === month;
-    }).reduce((sum, sale) => sum + sale.quantity, 0);
-}
+    let totalSales = 0;
+    items.forEach(item => {
+        if (item.sales) {
+            totalSales += item.sales.reduce((sum, s) => sum + s.quantity, 0);
+        }
+    });
 
-function updateStats() {
-    const totalItems = inventory.reduce((acc, item) => acc + item.quantity, 0);
-    const totalValue = inventory.reduce((acc, item) => acc + ((item.price || 0) * item.quantity), 0);
-    const lowStock = inventory.filter(item => item.quantity <= item.minQuantity).length;
-    const totalSales = inventory.reduce((acc, item) => acc + (item.sales ? item.sales.length : 0), 0);
-    
     if (totalItemsEl) totalItemsEl.innerText = totalItems;
     if (totalValueEl) totalValueEl.innerText = `R$ ${totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
     if (lowStockCountEl) lowStockCountEl.innerText = lowStock;
@@ -434,22 +420,9 @@ function updateStats() {
 
 // ===== BUSCA E FILTRO =====
 function setupSearchAndFilter() {
-    if (searchInput) searchInput.addEventListener('input', applyFilters);
-    if (categoryFilter) categoryFilter.addEventListener('change', applyFilters);
-}
-
-function applyFilters() {
-    const searchTerm = searchInput.value.toLowerCase();
-    const categoryTerm = categoryFilter.value;
-    
-    let filtered = inventory.filter(item => {
-        const matchesSearch = item.name.toLowerCase().includes(searchTerm) || 
-                             item.category.toLowerCase().includes(searchTerm);
-        const matchesCategory = categoryTerm === '' || item.category === categoryTerm;
-        return matchesSearch && matchesCategory;
-    });
-    
-    renderInventory(filtered);
+    if (searchInput) searchInput.addEventListener('input', updateInventoryTable);
+    if (categoryFilter) categoryFilter.addEventListener('change', updateInventoryTable);
+    if (brandFilter) brandFilter.addEventListener('change', updateInventoryTable);
 }
 
 // ===== MODAIS E FORMULÁRIOS =====
@@ -457,13 +430,16 @@ if (productForm) {
     productForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const id = document.getElementById('product-id').value;
-        const productData = {
-            name: document.getElementById('name').value,
-            category: document.getElementById('category').value,
-            price: parseFloat(document.getElementById('price').value),
-            quantity: parseInt(document.getElementById('quantity').value),
-            minQuantity: parseInt(document.getElementById('min-quantity').value)
-        };
+            const productData = {
+                name: document.getElementById('name').value,
+                category: document.getElementById('category').value,
+                brand: document.getElementById('brand').value,
+                size: document.getElementById('category').value === 'Vestuário' ? document.getElementById('size').value : '',
+                price: parseFloat(document.getElementById('price').value),
+                quantity: parseInt(document.getElementById('quantity').value),
+                minQuantity: parseInt(document.getElementById('min-quantity').value),
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
 
         try {
             if (id) {
@@ -532,6 +508,9 @@ window.editProduct = (id) => {
     const idInput = document.getElementById('product-id');
     const nameInput = document.getElementById('name');
     const catInput = document.getElementById('category');
+    const brandInput = document.getElementById('brand');
+    const sizeInput = document.getElementById('size');
+    const sizeGroup = document.getElementById('size-group');
     const priceInput = document.getElementById('price');
     const qtyInput = document.getElementById('quantity');
     const minQtyInput = document.getElementById('min-quantity');
@@ -539,6 +518,16 @@ window.editProduct = (id) => {
     if (idInput) idInput.value = item.id;
     if (nameInput) nameInput.value = item.name;
     if (catInput) catInput.value = item.category;
+    if (brandInput) brandInput.value = item.brand || '';
+    
+    if (item.category === 'Vestuário') {
+        if (sizeGroup) sizeGroup.style.display = 'block';
+        if (sizeInput) sizeInput.value = item.size || '';
+    } else {
+        if (sizeGroup) sizeGroup.style.display = 'none';
+        if (sizeInput) sizeInput.value = '';
+    }
+
     if (priceInput) priceInput.value = item.price;
     if (qtyInput) qtyInput.value = item.quantity;
     if (minQtyInput) minQtyInput.value = item.minQuantity;
@@ -763,10 +752,26 @@ if (btnAddProduct) {
     btnAddProduct.onclick = () => { 
         if (modalTitle) modalTitle.innerText = 'Novo Produto';
         if (productForm) productForm.reset(); 
+        const sizeGroup = document.getElementById('size-group');
+        if (sizeGroup) sizeGroup.style.display = 'none';
         const idInput = document.getElementById('product-id');
         if (idInput) idInput.value = ''; 
         if (modal) modal.style.display = 'block'; 
     };
 }
 
-if (reportMonth) reportMonth.onchange = updateReportCharts;
+    if (reportMonth) reportMonth.onchange = updateReportCharts;
+
+    // Lógica para mostrar/esconder campo de tamanho
+    const categorySelect = document.getElementById('category');
+    const sizeGroup = document.getElementById('size-group');
+    if (categorySelect && sizeGroup) {
+        categorySelect.addEventListener('change', () => {
+            if (categorySelect.value === 'Vestuário') {
+                sizeGroup.style.display = 'block';
+            } else {
+                sizeGroup.style.display = 'none';
+                document.getElementById('size').value = '';
+            }
+        });
+    }
