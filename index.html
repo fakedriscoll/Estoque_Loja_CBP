@@ -189,6 +189,15 @@
                             <option value="Acessórios">Acessórios</option>
                         </select>
                     </div>
+                    <div class="filter-box">
+                        <select id="brand-filter">
+                            <option value="">Todas as Marcas</option>
+                            <option value="MASASPORT">MASASPORT</option>
+                            <option value="JOOLA">JOOLA</option>
+                            <option value="ZCBRA">ZCBRA</option>
+                            <option value="HYPERLIGHT">HYPERLIGHT</option>
+                        </select>
+                    </div>
                 </section>
 
                 <section class="inventory-table">
@@ -281,6 +290,29 @@
                                 <option value="Acessórios">Acessórios</option>
                             </select>
                         </div>
+                        <div class="form-group">
+                            <label for="brand">Marca</label>
+                            <select id="brand" required>
+                                <option value="MASASPORT">MASASPORT</option>
+                                <option value="JOOLA">JOOLA</option>
+                                <option value="ZCBRA">ZCBRA</option>
+                                <option value="HYPERLIGHT">HYPERLIGHT</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="size-group" class="form-group" style="display: none;">
+                        <label for="size">Tamanho</label>
+                        <select id="size">
+                            <option value="">Selecione o Tamanho</option>
+                            <option value="PP">PP</option>
+                            <option value="P">P</option>
+                            <option value="M">M</option>
+                            <option value="G">G</option>
+                            <option value="GG">GG</option>
+                            <option value="XGG">XGG</option>
+                        </select>
+                    </div>
+                    <div class="form-row">
                         <div class="form-group">
                             <label for="price">Preço (R$)</label>
                             <input type="number" id="price" step="0.01" required>
