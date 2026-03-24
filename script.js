@@ -1,0 +1,671 @@
+// ===== CONFIGURAÇÃO DO FIREBASE =====
+// COLOQUE SUAS CHAVES AQUI:
+const firebaseConfig = {
+  apiKey: "AIzaSyAVL1-2YEdZNYCwR5siLM0zZpdHGVlg0jc",
+  authDomain: "cbp-estoque.firebaseapp.com",
+  projectId: "cbp-estoque",
+  storageBucket: "cbp-estoque.firebasestorage.app",
+  messagingSenderId: "770580270100",
+  appId: "1:770580270100:web:7f298f139c8a5d3e5ceb01"
+};
+
+// Inicializar Firebase
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+// Variáveis globais
+let inventory = [];
+let currentInventoryType = null;
+let currentUser = null;
+
+// Elementos do DOM
+const selectionScreen = document.getElementById('selection-screen');
+const managementScreen = document.getElementById('management-screen');
+const inventoryBody = document.getElementById('inventory-body');
+const totalItemsEl = document.getElementById('total-items');
+const totalValueEl = document.getElementById('total-value');
+const lowStockCountEl = document.getElementById('low-stock-count');
+const totalSalesEl = document.getElementById('total-sales');
+const searchInput = document.getElementById('search-input');
+const categoryFilter = document.getElementById('category-filter');
+const btnAddProduct = document.getElementById('btn-add-product');
+const btnBackSelection = document.getElementById('btn-back-selection');
+const modal = document.getElementById('product-modal');
+const salesModal = document.getElementById('sales-modal');
+const closeModals = document.querySelectorAll('.close');
+const productForm = document.getElementById('product-form');
+const salesForm = document.getElementById('sales-form');
+const modalTitle = document.getElementById('modal-title');
+const reportMonth = document.getElementById('report-month');
+const btnExportReport = document.getElementById('btn-export-report');
+const currentInventoryName = document.getElementById('current-inventory-name');
+
+// Inicialização
+document.addEventListener('DOMContentLoaded', () => {
+    setupAuthListeners();
+    checkAuthState();
+    setupSearchAndFilter();
+});
+
+// ===== AUTENTICAÇÃO =====
+function setupAuthListeners() {
+    const loginForm = document.getElementById('login-form');
+    const registerForm = document.getElementById('register-form');
+    const showRegister = document.getElementById('show-register');
+    const showLogin = document.getElementById('show-login');
+    const btnLogout = document.getElementById('btn-logout');
+    const btnLogoutAdmin = document.getElementById('btn-logout-admin');
+
+    showRegister.addEventListener('click', (e) => {
+        e.preventDefault();
+        document.getElementById('login-form-container').style.display = 'none';
+        document.getElementById('register-form-container').style.display = 'block';
+    });
+
+    showLogin.addEventListener('click', (e) => {
+        e.preventDefault();
+        document.getElementById('login-form-container').style.display = 'block';
+        document.getElementById('register-form-container').style.display = 'none';
+    });
+
+    loginForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const username = document.getElementById('login-username').value.trim();
+        const email = username + "@pckl.com";
+        const password = document.getElementById('login-password').value;
+        
+        console.log("Tentando login para:", email);
+        
+        try {
+            // Caso especial para o primeiro login do admin se ele ainda não existir no Auth
+            // Senha do admin alterada para 'admin123' para cumprir o requisito de 6 caracteres do Firebase
+            if (username === 'admin' && password === 'admin123') {
+                console.log("Verificando conta admin...");
+                try {
+                    await auth.createUserWithEmailAndPassword(email, password);
+                    console.log("Conta admin criada no Auth pela primeira vez.");
+                } catch (err) {
+                    console.log("Conta admin já existe no Auth ou erro menor:", err.code);
+                }
+            }
+
+            const userCredential = await auth.signInWithEmailAndPassword(email, password);
+            const user = userCredential.user;
+            console.log("Login no Auth realizado com sucesso. UID:", user.uid);
+            
+            let userDoc = await db.collection('users').doc(user.uid).get();
+            
+            // Se o documento não existir no Firestore, cria automaticamente
+            if (!userDoc.exists) {
+                console.log("Criando documento do usuário no Firestore...");
+                const role = username === 'admin' ? 'admin' : 'user';
+                const status = username === 'admin' ? 'approved' : 'pending';
+                await db.collection('users').doc(user.uid).set({
+                    username: username,
+                    role: role,
+                    status: status,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                userDoc = await db.collection('users').doc(user.uid).get();
+            }
+
+            const userData = userDoc.data();
+
+            if (!userData) {
+                console.error("Documento do usuário não encontrado no Firestore.");
+                alert('Erro ao carregar dados do usuário no banco de dados.');
+                auth.signOut();
+                return;
+            }
+
+            console.log("Dados do usuário carregados:", userData);
+
+            if (userData.status === 'pending') {
+                alert('Sua conta ainda está pendente de aprovação.');
+                auth.signOut();
+            } else if (userData.status === 'rejected') {
+                alert('Sua solicitação foi recusada.');
+                auth.signOut();
+            } else {
+                currentUser = { ...userData, uid: user.uid };
+                handleLoginSuccess();
+            }
+        } catch (error) {
+            console.error("Erro no processo de login:", error);
+            alert('Erro ao entrar: ' + error.message);
+        }
+    });
+
+    registerForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const username = document.getElementById('reg-username').value.trim();
+        const email = username + "@pckl.com";
+        const password = document.getElementById('reg-password').value;
+        
+        if (password.length < 6) {
+            alert("A senha deve ter pelo menos 6 caracteres!");
+            return;
+        }
+        
+        console.log("Tentando registrar novo usuário:", email);
+        
+        try {
+            const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+            const user = userCredential.user;
+            console.log("Usuário criado no Auth. UID:", user.uid);
+
+            // Criar documento do usuário no Firestore
+            console.log("Salvando dados no Firestore...");
+            await db.collection('users').doc(user.uid).set({
+                username: username,
+                role: 'user',
+                status: 'pending',
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            console.log("Dados salvos no Firestore com sucesso.");
+
+            alert('Solicitação enviada! Aguarde a aprovação do administrador.');
+            auth.signOut();
+            showLogin.click();
+        } catch (error) {
+            console.error("Erro ao registrar:", error);
+            alert('Erro ao registrar: ' + error.message);
+        }
+    });
+
+    btnLogout.addEventListener('click', () => auth.signOut());
+    btnLogoutAdmin.addEventListener('click', () => auth.signOut());
+}
+
+function checkAuthState() {
+    auth.onAuthStateChanged(async (user) => {
+        if (user) {
+            try {
+                let userDoc = await db.collection('users').doc(user.uid).get();
+                
+                // Se o documento não existir, criar automaticamente
+                if (!userDoc.exists) {
+                    console.log("Documento não encontrado. Criando automaticamente...");
+                    await db.collection('users').doc(user.uid).set({
+                        username: user.email.split('@')[0],
+                        role: 'user',
+                        status: 'pending',
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                    userDoc = await db.collection('users').doc(user.uid).get();
+                }
+                
+                if (userDoc.exists) {
+                    currentUser = { ...userDoc.data(), uid: user.uid };
+                    handleLoginSuccess();
+                }
+            } catch (error) {
+                console.error("Erro ao verificar estado de autenticação:", error);
+                handleLogout();
+            }
+        } else {
+            handleLogout();
+        }
+    });
+}
+
+async function handleLoginSuccess() {
+    document.getElementById('login-screen').style.display = 'none';
+    
+    // Se for o primeiro acesso do admin, garante que ele exista no Firestore
+    if (currentUser.uid && currentUser.role === 'admin') {
+        await db.collection('users').doc(currentUser.uid).set({
+            username: 'admin',
+            role: 'admin',
+            status: 'approved'
+        }, { merge: true });
+    }
+
+    if (currentUser.role === 'admin') {
+        showAdminPanel();
+    } else {
+        selectionScreen.style.display = 'flex';
+        updateSelectionCounts();
+    }
+}
+
+function handleLogout() {
+    currentUser = null;
+    document.getElementById('login-screen').style.display = 'flex';
+    selectionScreen.style.display = 'none';
+    managementScreen.style.display = 'none';
+    document.getElementById('admin-screen').style.display = 'none';
+}
+
+// ===== PAINEL ADMIN =====
+function showAdminPanel() {
+    document.getElementById('admin-screen').style.display = 'flex';
+    db.collection('users').onSnapshot(snapshot => {
+        const requestsBody = document.getElementById('users-requests-body');
+        requestsBody.innerHTML = '';
+        snapshot.forEach(doc => {
+            const user = doc.data();
+            if (user.role !== 'admin') {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${user.username}</td>
+                    <td><span class="status-badge ${user.status === 'approved' ? 'status-ok' : (user.status === 'pending' ? 'status-low' : 'status-empty')}">${user.status}</span></td>
+                    <td>
+                        ${user.status === 'pending' ? `
+                            <button class="btn-approve" onclick="updateUserStatus('${doc.id}', 'approved')">Aceitar</button>
+                            <button class="btn-reject" onclick="updateUserStatus('${doc.id}', 'rejected')">Recusar</button>
+                        ` : `
+                            <button class="btn-delete" onclick="deleteUser('${doc.id}')"><i class="fas fa-trash-alt"></i></button>
+                        `}
+                    </td>
+                `;
+                requestsBody.appendChild(row);
+            }
+        });
+    });
+}
+
+window.updateUserStatus = (uid, status) => {
+    db.collection('users').doc(uid).update({ status: status });
+};
+
+window.deleteUser = (uid) => {
+    if (confirm('Deseja excluir este usuário?')) {
+        db.collection('users').doc(uid).delete();
+    }
+};
+
+// ===== GESTÃO DE ESTOQUE (FIRESTORE) =====
+async function updateSelectionCounts() {
+    const lojaSnap = await db.collection('inventory_loja').get();
+    const vitrineSnap = await db.collection('inventory_vitrine').get();
+    document.getElementById('loja-count').innerText = `${lojaSnap.size} produtos`;
+    document.getElementById('vitrine-count').innerText = `${vitrineSnap.size} produtos`;
+}
+
+window.selectInventory = (type) => {
+    currentInventoryType = type;
+    currentInventoryName.innerText = type === 'loja' ? 'LOJA OFICIAL' : 'VITRINE';
+    
+    selectionScreen.style.display = 'none';
+    managementScreen.style.display = 'flex';
+    
+    // Escutar mudanças em tempo real
+    db.collection(`inventory_${type}`).onSnapshot(snapshot => {
+        inventory = [];
+        snapshot.forEach(doc => {
+            inventory.push({ id: doc.id, ...doc.data() });
+        });
+        renderInventory();
+        updateStats();
+        setCurrentMonth();
+    });
+};
+
+btnBackSelection.addEventListener('click', (e) => {
+    e.preventDefault();
+    selectionScreen.style.display = 'flex';
+    managementScreen.style.display = 'none';
+    updateSelectionCounts();
+});
+
+function renderInventory(items = inventory) {
+    inventoryBody.innerHTML = '';
+    if (items.length === 0) {
+        inventoryBody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #999;">Nenhum produto encontrado</td></tr>';
+        return;
+    }
+    items.forEach(item => {
+        const status = getStatus(item.quantity, item.minQuantity);
+        const monthlySales = getSalesForMonth(item);
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td><strong>${item.name}</strong></td>
+            <td>${item.category}</td>
+            <td>R$ ${item.price.toFixed(2)}</td>
+            <td>${item.quantity}</td>
+            <td>${monthlySales}</td>
+            <td><span class="status-badge ${status.class}">${status.label}</span></td>
+            <td>
+                <button class="btn-sales" onclick="openSalesModal('${item.id}')" title="Registrar Venda"><i class="fas fa-shopping-cart"></i></button>
+                <button class="btn-edit" onclick="editProduct('${item.id}')" title="Editar"><i class="fas fa-edit"></i></button>
+                <button class="btn-delete" onclick="deleteProduct('${item.id}')" title="Deletar"><i class="fas fa-trash-alt"></i></button>
+            </td>
+        `;
+        inventoryBody.appendChild(row);
+    });
+}
+
+function getStatus(qty, min) {
+    if (qty <= 0) return { label: 'Esgotado', class: 'status-empty' };
+    if (qty <= min) return { label: 'Baixo Estoque', class: 'status-low' };
+    return { label: 'Disponível', class: 'status-ok' };
+}
+
+function getSalesForMonth(product) {
+    if (!product.sales) return 0;
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = today.getMonth();
+    
+    return product.sales.filter(sale => {
+        const saleDate = new Date(sale.date);
+        return saleDate.getFullYear() === year && saleDate.getMonth() === month;
+    }).reduce((sum, sale) => sum + sale.quantity, 0);
+}
+
+function updateStats() {
+    const totalItems = inventory.reduce((acc, item) => acc + item.quantity, 0);
+    const totalValue = inventory.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+    const lowStock = inventory.filter(item => item.quantity <= item.minQuantity).length;
+    const totalSales = inventory.reduce((acc, item) => acc + (item.sales ? item.sales.length : 0), 0);
+    
+    totalItemsEl.innerText = totalItems;
+    totalValueEl.innerText = `R$ ${totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+    lowStockCountEl.innerText = lowStock;
+    totalSalesEl.innerText = totalSales;
+}
+
+// ===== BUSCA E FILTRO =====
+function setupSearchAndFilter() {
+    searchInput.addEventListener('input', applyFilters);
+    categoryFilter.addEventListener('change', applyFilters);
+}
+
+function applyFilters() {
+    const searchTerm = searchInput.value.toLowerCase();
+    const categoryTerm = categoryFilter.value;
+    
+    let filtered = inventory.filter(item => {
+        const matchesSearch = item.name.toLowerCase().includes(searchTerm) || 
+                             item.category.toLowerCase().includes(searchTerm);
+        const matchesCategory = categoryTerm === '' || item.category === categoryTerm;
+        return matchesSearch && matchesCategory;
+    });
+    
+    renderInventory(filtered);
+}
+
+// ===== MODAIS E FORMULÁRIOS =====
+productForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('product-id').value;
+    const productData = {
+        name: document.getElementById('name').value,
+        category: document.getElementById('category').value,
+        price: parseFloat(document.getElementById('price').value),
+        quantity: parseInt(document.getElementById('quantity').value),
+        minQuantity: parseInt(document.getElementById('min-quantity').value)
+    };
+
+    try {
+        if (id) {
+            await db.collection(`inventory_${currentInventoryType}`).doc(id).update(productData);
+            alert('Produto atualizado com sucesso!');
+        } else {
+            productData.sales = [];
+            await db.collection(`inventory_${currentInventoryType}`).add(productData);
+            alert('Produto adicionado com sucesso!');
+        }
+        modal.style.display = 'none';
+        productForm.reset();
+    } catch (error) {
+        console.error("Erro ao salvar produto:", error);
+        alert('Erro ao salvar produto: ' + error.message);
+    }
+});
+
+salesForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const productId = document.getElementById('sale-product-id').value;
+    const quantity = parseInt(document.getElementById('sale-quantity').value);
+    const date = document.getElementById('sale-date').value;
+    
+    try {
+        const productRef = db.collection(`inventory_${currentInventoryType}`).doc(productId);
+        const doc = await productRef.get();
+        const product = doc.data();
+        
+        if (product.quantity < quantity) {
+            alert('Quantidade insuficiente em estoque!');
+            return;
+        }
+        
+        const newSales = product.sales || [];
+        newSales.push({ date, quantity });
+        
+        await productRef.update({
+            quantity: product.quantity - quantity,
+            sales: newSales
+        });
+        
+        alert('Venda registrada com sucesso!');
+        salesModal.style.display = 'none';
+        salesForm.reset();
+    } catch (error) {
+        console.error("Erro ao registrar venda:", error);
+        alert('Erro ao registrar venda: ' + error.message);
+    }
+});
+
+window.deleteProduct = (id) => {
+    if (confirm('Tem certeza que deseja excluir este produto?')) {
+        db.collection(`inventory_${currentInventoryType}`).doc(id).delete()
+            .then(() => alert('Produto deletado com sucesso!'))
+            .catch(error => alert('Erro ao deletar: ' + error.message));
+    }
+};
+
+window.editProduct = (id) => {
+    const item = inventory.find(i => i.id === id);
+    if (!item) return;
+    
+    modalTitle.innerText = 'Editar Produto';
+    document.getElementById('product-id').value = item.id;
+    document.getElementById('name').value = item.name;
+    document.getElementById('category').value = item.category;
+    document.getElementById('price').value = item.price;
+    document.getElementById('quantity').value = item.quantity;
+    document.getElementById('min-quantity').value = item.minQuantity;
+    modal.style.display = 'block';
+};
+
+window.openSalesModal = (id) => {
+    const product = inventory.find(p => p.id === id);
+    if (!product) return;
+    
+    document.getElementById('sale-product-id').value = id;
+    document.getElementById('sale-product-name').innerText = product.name;
+    document.getElementById('sale-quantity').value = '';
+    document.getElementById('sale-date').valueAsDate = new Date();
+    salesModal.style.display = 'block';
+};
+
+// ===== RELATÓRIOS E EXPORTAÇÃO =====
+let salesByProductChart, monthlySalesChart;
+
+function setCurrentMonth() {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    reportMonth.value = `${year}-${month}`;
+}
+
+function updateReportCharts() {
+    const selectedDate = new Date(reportMonth.value + '-01');
+    const productNames = inventory.map(p => p.name);
+    const productSales = inventory.map(p => {
+        if (!p.sales) return 0;
+        return p.sales.filter(s => {
+            const d = new Date(s.date);
+            return d.getFullYear() === selectedDate.getFullYear() && d.getMonth() === selectedDate.getMonth();
+        }).reduce((sum, s) => sum + s.quantity, 0);
+    });
+
+    // Gráfico de Vendas por Produto
+    const ctx1 = document.getElementById('salesByProductChart').getContext('2d');
+    if (salesByProductChart) salesByProductChart.destroy();
+    salesByProductChart = new Chart(ctx1, {
+        type: 'bar',
+        data: {
+            labels: productNames.length > 0 ? productNames : ['Sem dados'],
+            datasets: [{ 
+                label: 'Vendas', 
+                data: productSales.length > 0 ? productSales : [0], 
+                backgroundColor: '#003399',
+                borderColor: '#001a4d',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+
+    // Gráfico de Histórico de Vendas (Últimos 6 Meses)
+    updateMonthlySalesChart(selectedDate);
+    updateReportSummary(selectedDate);
+}
+
+function updateMonthlySalesChart(selectedDate) {
+    const months = [];
+    const monthlySalesData = [];
+    
+    for (let i = 5; i >= 0; i--) {
+        const date = new Date(selectedDate);
+        date.setMonth(date.getMonth() - i);
+        const monthLabel = date.toLocaleString('pt-BR', { month: 'short', year: '2-digit' });
+        months.push(monthLabel);
+        
+        let totalSales = 0;
+        inventory.forEach(p => {
+            if (p.sales) {
+                totalSales += p.sales.filter(s => {
+                    const saleDate = new Date(s.date);
+                    return saleDate.getFullYear() === date.getFullYear() && 
+                           saleDate.getMonth() === date.getMonth();
+                }).reduce((sum, s) => sum + s.quantity, 0);
+            }
+        });
+        monthlySalesData.push(totalSales);
+    }
+
+    const ctx2 = document.getElementById('monthlySalesChart').getContext('2d');
+    if (monthlySalesChart) monthlySalesChart.destroy();
+    monthlySalesChart = new Chart(ctx2, {
+        type: 'line',
+        data: {
+            labels: months,
+            datasets: [{
+                label: 'Vendas Mensais',
+                data: monthlySalesData,
+                borderColor: '#008000',
+                backgroundColor: 'rgba(0, 128, 0, 0.1)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+}
+
+function updateReportSummary(date) {
+    let totalSales = 0;
+    let totalRevenue = 0;
+    let topProduct = '-';
+    let topProductQty = 0;
+    
+    inventory.forEach(p => {
+        if (!p.sales) return;
+        const monthSales = p.sales.filter(s => {
+            const d = new Date(s.date);
+            return d.getFullYear() === date.getFullYear() && d.getMonth() === date.getMonth();
+        });
+        const qty = monthSales.reduce((sum, s) => sum + s.quantity, 0);
+        totalSales += qty;
+        totalRevenue += qty * p.price;
+        
+        if (qty > topProductQty) {
+            topProductQty = qty;
+            topProduct = p.name;
+        }
+    });
+    
+    const avgTicket = totalSales > 0 ? totalRevenue / totalSales : 0;
+    
+    document.getElementById('report-total-sales').innerText = totalSales;
+    document.getElementById('report-total-revenue').innerText = `R$ ${totalRevenue.toFixed(2)}`;
+    document.getElementById('report-top-product').innerText = topProduct;
+    document.getElementById('report-avg-ticket').innerText = `R$ ${avgTicket.toFixed(2)}`;
+}
+
+btnExportReport.addEventListener('click', () => {
+    const selectedDate = new Date(reportMonth.value + '-01');
+    let csvContent = "sep=,\nProduto,Categoria,Preço,Vendas,Faturamento\n";
+    inventory.forEach(p => {
+        const qty = p.sales ? p.sales.filter(s => {
+            const d = new Date(s.date);
+            return d.getFullYear() === selectedDate.getFullYear() && d.getMonth() === selectedDate.getMonth();
+        }).reduce((sum, s) => sum + s.quantity, 0) : 0;
+        csvContent += `"${p.name}",${p.category},${p.price.toFixed(2)},${qty},${(qty * p.price).toFixed(2)}\n`;
+    });
+    const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `relatorio_${currentInventoryType}_${reportMonth.value}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+});
+
+// Navegação de abas
+document.querySelectorAll('.nav-link').forEach(link => {
+    link.addEventListener('click', (e) => {
+        e.preventDefault();
+        const target = link.getAttribute('href');
+        if (target === '#') return;
+        
+        // Remove active de todos
+        document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+        link.classList.add('active');
+        
+        document.querySelectorAll('.section-content').forEach(s => s.style.display = 'none');
+        document.querySelector(target).style.display = 'block';
+        if (target === '#relatorio') updateReportCharts();
+    });
+});
+
+// Fechar modais
+closeModals.forEach(c => c.onclick = () => { 
+    modal.style.display = 'none'; 
+    salesModal.style.display = 'none'; 
+});
+window.onclick = (e) => { 
+    if (e.target == modal || e.target == salesModal) { 
+        modal.style.display = 'none'; 
+        salesModal.style.display = 'none'; 
+    } 
+};
+btnAddProduct.onclick = () => { 
+    modalTitle.innerText = 'Novo Produto';
+    productForm.reset(); 
+    document.getElementById('product-id').value = ''; 
+    modal.style.display = 'block'; 
+};
+reportMonth.onchange = updateReportCharts;

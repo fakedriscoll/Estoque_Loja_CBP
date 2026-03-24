@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Controle de Estoque - PCKL HOUSE</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="icon" href="img/LOGO_PCKL.jpeg" type="image/png">
+</head>
+<body>
+    <!-- TELA DE LOGIN -->
+    <div id="login-screen" class="login-screen">
+        <div class="login-container">
+            <div class="login-logo">
+                <span class="cbp-text-large">PCKL</span>
+                <span class="sub-text-large">SISTEMA DE GESTÃO</span>
+            </div>
+            
+            <div id="login-form-container">
+                <form id="login-form">
+                    <h2>Entrar</h2>
+                    <div class="form-group">
+                        <label for="login-username">Usuário</label>
+                        <input type="text" id="login-username" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="login-password">Senha</label>
+                        <input type="password" id="login-password" required>
+                    </div>
+                    <button type="submit" class="btn-login">Acessar</button>
+                    <p class="form-footer">Não tem conta? <a href="#" id="show-register">Solicitar Acesso</a></p>
+                </form>
+            </div>
+
+            <div id="register-form-container" style="display: none;">
+                <form id="register-form">
+                    <h2>Solicitar Acesso</h2>
+                    <div class="form-group">
+                        <label for="reg-username">Usuário Desejado</label>
+                        <input type="text" id="reg-username" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="reg-password">Senha</label>
+                        <input type="password" id="reg-password" required>
+                    </div>
+                    <button type="submit" class="btn-login">Enviar Solicitação</button>
+                    <p class="form-footer">Já tem conta? <a href="#" id="show-login">Voltar ao Login</a></p>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- TELA DE ADMINISTRAÇÃO DE USUÁRIOS (APENAS PARA ADM) -->
+    <div id="admin-screen" class="management-screen" style="display: none;">
+        <header>
+            <div class="container header-content">
+                <div class="logo">
+    <img src="img/LOGO_PCKL.jpeg" alt="Logo PCKL" class="logo-img">
+    <div>
+        <span class="cbp-text">PCKL</span>
+        <span class="sub-text">PAINEL ADMINISTRADOR</span>
+    </div>
+</div>
+                <nav>
+                    <ul>
+                        <li><a href="#" class="nav-link active"><i class="fas fa-users-cog"></i> Usuários</a></li>
+                        <li><a href="#" id="btn-logout-admin" class="btn-back"><i class="fas fa-sign-out-alt"></i> Sair</a></li>
+                    </ul>
+                </nav>
+            </div>
+        </header>
+        <main class="container">
+            <section class="section-content">
+                <h2 class="section-title">Solicitações de Acesso</h2>
+                <div class="inventory-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Usuário</th>
+                                <th>Status</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="users-requests-body">
+                            <!-- Solicitações serão inseridas via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+    </div>
+    <!-- TELA DE SELEÇÃO DE ESTOQUE -->
+    <div id="selection-screen" class="selection-screen" style="display: none;">
+        <header class="selection-header">
+            <div class="logo-large">
+                <span class="cbp-text-large">PCKL</span>
+                <span class="sub-text-large">PCKL HOUSE - LOJA DE PICKLEBALL</span>
+            </div>
+        </header>
+
+        <main class="selection-container">
+            <h1>Selecione o Estoque</h1>
+            <p>Escolha qual estoque você deseja gerenciar</p>
+
+            <div class="selection-cards">
+                <div class="selection-card" onclick="selectInventory('loja')">
+                    <div class="card-icon">
+                        <i class="fas fa-store"></i>
+                    </div>
+                    <h2>Estoque da Loja</h2>
+                    <p>Gerenciar produtos da loja principal</p>
+                    <span class="card-badge" id="loja-count">0 produtos</span>
+                </div>
+
+                <div class="selection-card" onclick="selectInventory('vitrine')">
+                    <div class="card-icon">
+                        <i class="fas fa-window"></i>
+                    </div>
+                    <h2>Estoque da Vitrine</h2>
+                    <p>Gerenciar produtos da vitrine</p>
+                    <span class="card-badge" id="vitrine-count">0 produtos</span>
+                </div>
+            </div>
+        </main>
+
+        <footer class="selection-footer">
+            <p>&copy; 2026 PCKL HOUSE - Sistema de Gestão de Estoques</p>
+        </footer>
+    </div>
+
+    <!-- TELA DE GERENCIAMENTO DE ESTOQUE -->
+    <div id="management-screen" class="management-screen" style="display: none;">
+        <header>
+            <div class="container header-content">
+                <div class="logo">
+                    <span class="cbp-text">PCKL</span>
+                    <span class="sub-text" id="current-inventory-name">LOJA OFICIAL</span>
+                </div>
+                <nav>
+                    <ul>
+                        <li><a href="#estoque" class="nav-link active"><i class="fas fa-boxes"></i> Estoque</a></li>
+                        <li><a href="#relatorio" class="nav-link"><i class="fas fa-chart-bar"></i> Relatório</a></li>
+                        <li><a href="#" id="btn-add-product"><i class="fas fa-plus-circle"></i> Novo Produto</a></li>
+                        <li><a href="#" id="btn-back-selection" class="btn-back"><i class="fas fa-arrow-left"></i> Voltar</a></li>
+                        <li><a href="#" id="btn-logout" class="btn-back"><i class="fas fa-sign-out-alt"></i> Sair</a></li>
+                    </ul>
+                </nav>
+            </div>
+        </header>
+
+        <main class="container">
+            <!-- SEÇÃO DE ESTOQUE -->
+            <section id="estoque" class="section-content">
+                <h2 class="section-title">Gestão de Estoque</h2>
+                
+                <section class="stats">
+                    <div class="stat-card">
+                        <h3>Total de Itens</h3>
+                        <p id="total-items">0</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Valor em Estoque</h3>
+                        <p id="total-value">R$ 0,00</p>
+                    </div>
+                    <div class="stat-card alert">
+                        <h3>Estoque Baixo</h3>
+                        <p id="low-stock-count">0</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Total de Vendas</h3>
+                        <p id="total-sales">0</p>
+                    </div>
+                </section>
+
+                <section class="inventory-controls">
+                    <div class="search-box">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="search-input" placeholder="Buscar produto por nome ou categoria...">
+                    </div>
+                    <div class="filter-box">
+                        <select id="category-filter">
+                            <option value="">Todas as Categorias</option>
+                            <option value="Raquetes">Raquetes</option>
+                            <option value="Bolas">Bolas</option>
+                            <option value="Vestuário">Vestuário</option>
+                            <option value="Acessórios">Acessórios</option>
+                        </select>
+                    </div>
+                </section>
+
+                <section class="inventory-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Produto</th>
+                                <th>Categoria</th>
+                                <th>Preço</th>
+                                <th>Quantidade</th>
+                                <th>Vendas Mês</th>
+                                <th>Status</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="inventory-body">
+                            <!-- Produtos serão inseridos via JS -->
+                        </tbody>
+                    </table>
+                </section>
+            </section>
+
+            <!-- SEÇÃO DE RELATÓRIO -->
+            <section id="relatorio" class="section-content" style="display: none;">
+                <h2 class="section-title">Relatório de Vendas</h2>
+                
+                <div class="report-controls">
+                    <div class="month-selector">
+                        <label for="report-month">Selecionar Mês:</label>
+                        <input type="month" id="report-month">
+                    </div>
+                    <button id="btn-export-report" class="btn-export">
+                        <i class="fas fa-download"></i> Exportar Relatório
+                    </button>
+                </div>
+
+                <div class="charts-container">
+                    <div class="chart-box">
+                        <h3>Vendas por Produto (Mês Atual)</h3>
+                        <canvas id="salesByProductChart"></canvas>
+                    </div>
+                    <div class="chart-box">
+                        <h3>Histórico de Vendas (Últimos 6 Meses)</h3>
+                        <canvas id="monthlySalesChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="report-summary">
+                    <h3>Resumo do Mês</h3>
+                    <div class="summary-grid">
+                        <div class="summary-item">
+                            <span class="label">Total de Vendas</span>
+                            <span class="value" id="report-total-sales">0</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="label">Faturamento</span>
+                            <span class="value" id="report-total-revenue">R$ 0,00</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="label">Produto Mais Vendido</span>
+                            <span class="value" id="report-top-product">-</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="label">Ticket Médio</span>
+                            <span class="value" id="report-avg-ticket">R$ 0,00</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Modal para Novo/Editar Produto -->
+        <div id="product-modal" class="modal">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h2 id="modal-title">Novo Produto</h2>
+                <form id="product-form">
+                    <input type="hidden" id="product-id">
+                    <div class="form-group">
+                        <label for="name">Nome do Produto</label>
+                        <input type="text" id="name" required>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="category">Categoria</label>
+                            <select id="category" required>
+                                <option value="Raquetes">Raquetes</option>
+                                <option value="Bolas">Bolas</option>
+                                <option value="Vestuário">Vestuário</option>
+                                <option value="Acessórios">Acessórios</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="price">Preço (R$)</label>
+                            <input type="number" id="price" step="0.01" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="quantity">Quantidade em Estoque</label>
+                            <input type="number" id="quantity" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="min-quantity">Quantidade Mínima</label>
+                            <input type="number" id="min-quantity" value="5" required>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn-save">Salvar Produto</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Modal para Registrar Vendas -->
+        <div id="sales-modal" class="modal">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h2>Registrar Venda</h2>
+                <form id="sales-form">
+                    <input type="hidden" id="sale-product-id">
+                    <div class="form-group">
+                        <label>Produto</label>
+                        <p id="sale-product-name" style="font-weight: bold; color: var(--primary-color);"></p>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="sale-quantity">Quantidade Vendida</label>
+                            <input type="number" id="sale-quantity" min="1" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="sale-date">Data da Venda</label>
+                            <input type="date" id="sale-date" required>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn-save">Registrar Venda</button>
+                </form>
+            </div>
+        </div>
+
+        <footer>
+            <p>&copy; 2026 PCKL HOUSE - Sistema de Gestão de Loja</p>
+        </footer>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
+    <script src="script.js"></script>
+</body>
+</html>
