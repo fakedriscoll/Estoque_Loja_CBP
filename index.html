@@ -79,6 +79,7 @@
                         <thead>
                             <tr>
                                 <th>Usuário</th>
+                                <th>Senha</th>
                                 <th>Status</th>
                                 <th>Ações</th>
                             </tr>
@@ -116,7 +117,7 @@
 
                 <div class="selection-card" onclick="selectInventory('vitrine')">
                     <div class="card-icon">
-                        <i class="fas fa-window"></i>
+                        <i class="fas fa-window-restore"></i>
                     </div>
                     <h2>Estoque da Vitrine</h2>
                     <p>Gerenciar produtos da vitrine</p>
@@ -296,6 +297,30 @@
                         </div>
                     </div>
                     <button type="submit" class="btn-save">Salvar Produto</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Modal para Editar Usuário (Admin) -->
+        <div id="reset-password-modal" class="modal">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h2>Editar Usuário</h2>
+                <form id="reset-password-form">
+                    <input type="hidden" id="reset-user-id">
+                    <div class="form-group">
+                        <label for="edit-username">Nome de Usuário</label>
+                        <input type="text" id="edit-username" required placeholder="Novo nome de usuário">
+                    </div>
+                    <div class="form-group">
+                        <label for="new-password">Nova Senha (deixe em branco para não alterar)</label>
+                        <input type="password" id="new-password" minlength="6" placeholder="Mínimo 6 caracteres">
+                    </div>
+                    <div class="form-group">
+                        <label for="confirm-password">Confirmar Nova Senha</label>
+                        <input type="password" id="confirm-password" minlength="6" placeholder="Confirme a nova senha">
+                    </div>
+                    <button type="submit" class="btn-save">Salvar Alterações</button>
                 </form>
             </div>
         </div>
