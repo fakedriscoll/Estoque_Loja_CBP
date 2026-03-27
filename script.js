@@ -464,6 +464,7 @@ if (salesForm) {
         const productId = document.getElementById('sale-product-id').value;
         const quantity = parseInt(document.getElementById('sale-quantity').value);
         const date = document.getElementById('sale-date').value;
+        const seller = document.getElementById('sale-seller').value;
         
         try {
             const productRef = db.collection(`inventory_${currentInventoryType}`).doc(productId);
@@ -476,7 +477,7 @@ if (salesForm) {
             }
             
             const newSales = product.sales || [];
-            newSales.push({ date, quantity });
+            newSales.push({ date, quantity, seller });
             
             await productRef.update({
                 quantity: product.quantity - quantity,
@@ -695,16 +696,20 @@ function updateReportSummary(date) {
     if (atEl) atEl.innerText = `R$ ${avgTicket.toFixed(2)}`;
 }
 
-if (btnExportReport) {
+        if (btnExportReport) {
     btnExportReport.addEventListener('click', () => {
         const selectedDate = new Date(reportMonth.value + '-01');
-        let csvContent = "sep=,\nProduto,Categoria,Preço,Vendas,Faturamento\n";
+        let csvContent = "sep=,\nData,Produto,Vendedor,Categoria,Preço,Quantidade,Faturamento\n";
         inventory.forEach(p => {
-            const qty = p.sales ? p.sales.filter(s => {
-                const d = new Date(s.date);
-                return d.getFullYear() === selectedDate.getFullYear() && d.getMonth() === selectedDate.getMonth();
-            }).reduce((sum, s) => sum + s.quantity, 0) : 0;
-            csvContent += `"${p.name}",${p.category},${(p.price || 0).toFixed(2)},${qty},${(qty * (p.price || 0)).toFixed(2)}\n`;
+            if (p.sales) {
+                p.sales.forEach(s => {
+                    const d = new Date(s.date);
+                    if (d.getFullYear() === selectedDate.getFullYear() && d.getMonth() === selectedDate.getMonth()) {
+                        const seller = s.seller || "N/A";
+                        csvContent += `${s.date},"${p.name}","${seller}",${p.category},${(p.price || 0).toFixed(2)},${s.quantity},${(s.quantity * (p.price || 0)).toFixed(2)}\n`;
+                    }
+                });
+            }
         });
         const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = window.URL.createObjectURL(blob);
