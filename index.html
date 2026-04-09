@@ -157,23 +157,41 @@
                 <h2 class="section-title">Gestão de Estoque</h2>
                 
                 <section class="stats">
-                    <div class="stat-card">
-                        <h3>Total de Itens</h3>
-                        <p id="total-items">0</p>
-                    </div>
-                    <div class="stat-card">
-                        <h3>Valor em Estoque</h3>
-                        <p id="total-value">R$ 0,00</p>
-                    </div>
-                    <div class="stat-card alert">
-                        <h3>Estoque Baixo</h3>
-                        <p id="low-stock-count">0</p>
-                    </div>
-                    <div class="stat-card">
-                        <h3>Total de Vendas</h3>
-                        <p id="total-sales">0</p>
-                    </div>
-                </section>
+    <div class="stat-card">
+        <h3>Total de Itens</h3>
+        <p id="total-items">0</p>
+    </div>
+    <div class="stat-card">
+        <h3>Valor em Estoque</h3>
+        <p id="total-value">R$ 0,00</p>
+    </div>
+    <div class="stat-card alert">
+        <h3>Estoque Baixo</h3>
+        <p id="low-stock-count">0</p>
+    </div>
+    <div class="stat-card">
+        <h3>Total de Vendas</h3>
+        <p id="total-sales">0</p>
+    </div>
+    <div class="stat-card warning">
+        <h3>Reposição Prioritária</h3>
+        <p id="priority-restock-count">0</p>
+    </div>
+</section>
+
+<section class="restock-section">
+    <div class="restock-box">
+        <div class="restock-header">
+            <h3><i class="fas fa-box-open"></i> Produtos para Repor</h3>
+            <button id="btn-refresh-restock" class="btn-refresh-restock">
+                <i class="fas fa-rotate-right"></i> Atualizar
+            </button>
+        </div>
+        <div id="restock-list" class="restock-list">
+            <p class="empty-restock">Nenhum produto precisa de atenção no momento.</p>
+        </div>
+    </div>
+</section>
 
                 <section class="inventory-controls">
                     <div class="search-box">
@@ -352,6 +370,16 @@
                         <label for="confirm-password">Confirmar Nova Senha</label>
                         <input type="password" id="confirm-password" minlength="6" placeholder="Confirme a nova senha">
                     </div>
+                    <div class="form-group">
+                        <label for="edit-brand">Marca Permitida (Apenas para Usuários)</label>
+                        <select id="edit-brand">
+                            <option value="">Todas as Marcas (Admin)</option>
+                            <option value="MASASPORT">MASASPORT</option>
+                            <option value="JOOLA">JOOLA</option>
+                            <option value="ZCBRA">ZCBRA</option>
+                            <option value="HYPERLIGHT">HYPERLIGHT</option>
+                        </select>
+                    </div>
                     <button type="submit" class="btn-save">Salvar Alterações</button>
                 </form>
             </div>
@@ -395,6 +423,28 @@
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
+    <!-- Botão e Chat do Agente de IA -->
+    <div id="ai-chat-widget" class="ai-chat-widget">
+        <button id="ai-chat-toggle" class="ai-chat-toggle">
+            <i class="fas fa-robot"></i>
+            <span>Agente IA</span>
+        </button>
+        <div id="ai-chat-container" class="ai-chat-container" style="display: none;">
+            <div class="ai-chat-header">
+                <i class="fas fa-robot"></i>
+                <h3>Assistente PCKL</h3>
+                <button id="ai-chat-close"><i class="fas fa-times"></i></button>
+            </div>
+            <div id="ai-chat-messages" class="ai-chat-messages">
+                <div class="message ai-message">Olá! Sou seu assistente de gestão. Como posso ajudar com o estoque ou promoções hoje?</div>
+            </div>
+            <div class="ai-chat-input">
+                <input type="text" id="ai-user-input" placeholder="Pergunte sobre promoções...">
+                <button id="ai-send-btn"><i class="fas fa-paper-plane"></i></button>
+            </div>
+        </div>
+    </div>
 
     <script src="script.js"></script>
 </body>
