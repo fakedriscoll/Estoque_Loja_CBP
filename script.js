@@ -1,4 +1,11 @@
 // ===== CONFIGURAÇÃO DO FIREBASE =====
+// Configuração Global e Diagnóstico
+window.onerror = function(message, source, lineno, colno, error) {
+    console.error("ERRO GLOBAL DETECTADO:", message, "em", source, "linha:", lineno);
+    return false;
+};
+
+// Variáveis de Configuração
 const firebaseConfig = {
   apiKey: "AIzaSyAVL1-2YEdZNYCwR5siLM0zZpdHGVlg0jc",
   authDomain: "cbp-estoque.firebaseapp.com",
@@ -8,43 +15,77 @@ const firebaseConfig = {
   appId: "1:770580270100:web:7f298f139c8a5d3e5ceb01"
 };
 
-firebase.initializeApp(firebaseConfig);
-const auth = firebase.auth();
-const db = firebase.firestore();
+// Inicialização Segura do Firebase
+let auth, db;
+try {
+    firebase.initializeApp(firebaseConfig);
+    auth = firebase.auth();
+    db = firebase.firestore();
+    console.log("Firebase inicializado com sucesso.");
+} catch (e) {
+    console.error("Falha ao inicializar Firebase:", e);
+}
 
+// Variáveis de Estado
 let inventory = [];
 let currentInventoryType = null;
 let currentUser = null;
 
-const selectionScreen = document.getElementById('selection-screen');
-const managementScreen = document.getElementById('management-screen');
-const inventoryBody = document.getElementById('inventory-body');
-const totalItemsEl = document.getElementById('total-items');
-const totalValueEl = document.getElementById('total-value');
-const lowStockCountEl = document.getElementById('low-stock-count');
-const totalSalesEl = document.getElementById('total-sales');
-const searchInput = document.getElementById('search-input');
-const categoryFilter = document.getElementById('category-filter');
-const brandFilter = document.getElementById('brand-filter');
-const btnAddProduct = document.getElementById('btn-add-product');
-const btnBackSelection = document.getElementById('btn-back-selection');
-const modal = document.getElementById('product-modal');
-const salesModal = document.getElementById('sales-modal');
-const resetPasswordModal = document.getElementById('reset-password-modal');
-const closeModals = document.querySelectorAll('.close');
-const productForm = document.getElementById('product-form');
-const salesForm = document.getElementById('sales-form');
-const resetPasswordForm = document.getElementById('reset-password-form');
-const modalTitle = document.getElementById('modal-title');
-const reportMonth = document.getElementById('report-month');
-const btnExportReport = document.getElementById('btn-export-report');
-const currentInventoryName = document.getElementById('current-inventory-name');
+// Elementos do DOM (serão inicializados no initDomElements)
+let selectionScreen, managementScreen, inventoryBody, totalItemsEl, totalValueEl, 
+    lowStockCountEl, totalSalesEl, priorityRestockCountEl, restockListEl, 
+    btnRefreshRestock, searchInput, categoryFilter, brandFilter, 
+    btnAddProduct, btnBackSelection, modal, salesModal, resetPasswordModal, 
+    closeModals, productForm, salesForm, resetPasswordForm, 
+    modalTitle, reportMonth, btnExportReport, currentInventoryName;
+
+function initDomElements() {
+    console.log("Inicializando elementos do DOM...");
+    selectionScreen = document.getElementById('selection-screen');
+    managementScreen = document.getElementById('management-screen');
+    inventoryBody = document.getElementById('inventory-body');
+    totalItemsEl = document.getElementById('total-items');
+    totalValueEl = document.getElementById('total-value');
+    lowStockCountEl = document.getElementById('low-stock-count');
+    totalSalesEl = document.getElementById('total-sales');
+    priorityRestockCountEl = document.getElementById('priority-restock-count');
+    restockListEl = document.getElementById('restock-list');
+    btnRefreshRestock = document.getElementById('btn-refresh-restock');
+    searchInput = document.getElementById('search-input');
+    categoryFilter = document.getElementById('category-filter');
+    brandFilter = document.getElementById('brand-filter');
+    btnAddProduct = document.getElementById('btn-add-product');
+    btnBackSelection = document.getElementById('btn-back-selection');
+    modal = document.getElementById('product-modal');
+    salesModal = document.getElementById('sales-modal');
+    resetPasswordModal = document.getElementById('reset-password-modal');
+    closeModals = document.querySelectorAll('.close');
+    productForm = document.getElementById('product-form');
+    salesForm = document.getElementById('sales-form');
+    resetPasswordForm = document.getElementById('reset-password-form');
+    modalTitle = document.getElementById('modal-title');
+    reportMonth = document.getElementById('report-month');
+    btnExportReport = document.getElementById('btn-export-report');
+    currentInventoryName = document.getElementById('current-inventory-name');
+    
+    console.log("DOM inicializado.");
+    
+    // Mover modais para o final do body para evitar conflitos de stacking context
+    const modais = document.querySelectorAll('.modal');
+    modais.forEach(m => document.body.appendChild(m));
+}
 
 document.addEventListener('DOMContentLoaded', () => {
+    console.log("DOM carregado, iniciando sistema...");
+    initDomElements();
     setupAuthListeners();
     checkAuthState();
     setupSearchAndFilter();
     setupResetPasswordListener();
+    setupNavLinks();
+    setupModalCloseHandlers();
+    setupCategoryChangeListener();
+    setupButtonListeners();
 });
 
 // ===== AUTENTICAÇÃO =====
@@ -222,8 +263,10 @@ function handleLogout() {
 
 // ===== PAINEL ADMIN =====
 function showAdminPanel() {
+    console.log("Exibindo painel de administrador...");
     document.getElementById('admin-screen').style.display = 'flex';
     db.collection('users').onSnapshot(snapshot => {
+        console.log("Recebida atualização de usuários, total:", snapshot.size);
         const requestsBody = document.getElementById('users-requests-body');
         if (!requestsBody) return;
         requestsBody.innerHTML = '';
@@ -232,12 +275,16 @@ function showAdminPanel() {
             if (user.role !== 'admin') {
                 const row = document.createElement('tr');
                 const userPassword = user.password || '***';
+                const userBrand = user.allowedBrand || 'Todas';
+                const safeUsername = (user.username || "").replace(/'/g, "\\'");
+                const safeBrand = (user.allowedBrand || "").replace(/'/g, "\\'");
+                
                 row.innerHTML = `
                     <td>${user.username}</td>
                     <td><span class="password-display">${userPassword}</span></td>
-                    <td><span class="status-badge status-${user.status}">${user.status}</span></td>
+                    <td><span class="status-badge status-${user.status}">${user.status}</span> <br> <small>Marca: ${userBrand}</small></td>
                     <td>
-                        <button class="btn-reset-password" onclick="openResetPasswordModal('${doc.id}', '${user.username}')"><i class="fas fa-key"></i> Editar</button>
+                        <button class="btn-reset-password edit-user-btn" onclick="console.log('Botão Editar clicado!'); window.openResetPasswordModal('${doc.id}', '${safeUsername}', '${safeBrand}')"><i class="fas fa-edit"></i> Editar</button>
                         ${user.status === 'pending' ? `
                             <button class="btn-approve" onclick="updateUserStatus('${doc.id}', 'approved')">Aprovar</button>
                             <button class="btn-reject" onclick="updateUserStatus('${doc.id}', 'rejected')">Recusar</button>
@@ -262,12 +309,44 @@ window.deleteUser = (uid) => {
     }
 };
 
-window.openResetPasswordModal = (uid, username) => {
+window.openResetPasswordModal = (uid, username, brand) => {
+    console.log("Abrindo modal para usuário:", username, "UID:", uid, "Marca:", brand);
+    
     const idInput = document.getElementById('reset-user-id');
     const nameInput = document.getElementById('edit-username');
+    const brandInput = document.getElementById('edit-brand');
+    const modalElement = document.getElementById('reset-password-modal');
+    
+    console.log("Elementos encontrados:", {
+        idInput: !!idInput,
+        nameInput: !!nameInput,
+        brandInput: !!brandInput,
+        modalElement: !!modalElement
+    });
+
     if (idInput) idInput.value = uid;
     if (nameInput) nameInput.value = username;
-    if (resetPasswordModal) resetPasswordModal.style.display = 'block';
+    if (brandInput) {
+        // Garantir que o valor existe nas opções antes de atribuir
+        const options = Array.from(brandInput.options).map(opt => opt.value);
+        const brandToSet = brand && brand !== 'undefined' ? brand : '';
+        if (options.includes(brandToSet)) {
+            brandInput.value = brandToSet;
+        } else {
+            brandInput.value = ''; // Default para "Todas"
+        }
+    }
+    
+    if (modalElement) {
+        modalElement.style.display = 'block';
+        console.log("Modal exibido via modalElement");
+    } else if (resetPasswordModal) {
+        resetPasswordModal.style.display = 'block';
+        console.log("Modal exibido via resetPasswordModal");
+    } else {
+        console.error("ERRO: Modal não encontrado!");
+        alert("Erro crítico: O modal de edição não foi encontrado na página.");
+    }
 };
 
 function setupResetPasswordListener() {
@@ -278,18 +357,39 @@ function setupResetPasswordListener() {
             const newUsername = document.getElementById('edit-username').value.trim();
             const newPassword = document.getElementById('new-password').value;
             const confirmPassword = document.getElementById('confirm-password').value;
+            const selectedBrand = document.getElementById('edit-brand').value;
+
+            if (!uid) {
+                alert('Erro: ID do usuário não encontrado.');
+                return;
+            }
+
+            if (!newUsername) {
+                alert('Por favor, insira um nome de usuário.');
+                return;
+            }
 
             if (newPassword && newPassword !== confirmPassword) {
                 alert('As senhas não coincidem!');
                 return;
             }
 
+            if (newPassword && newPassword.length < 6) {
+                alert('A senha deve ter pelo menos 6 caracteres!');
+                return;
+            }
+
             try {
-                const updateData = { username: newUsername };
+                const updateData = { 
+                    username: newUsername,
+                    allowedBrand: selectedBrand || ''
+                };
                 if (newPassword) updateData.password = newPassword;
                 
                 await db.collection('users').doc(uid).update(updateData);
-                alert('Usuário atualizado com sucesso!');
+                alert('Usuário atualizado com sucesso! Marca permitida: ' + (selectedBrand || 'Todas'));
+                const modalElement = document.getElementById('reset-password-modal');
+                if (modalElement) modalElement.style.display = 'none';
                 if (resetPasswordModal) resetPasswordModal.style.display = 'none';
                 resetPasswordForm.reset();
             } catch (error) {
@@ -339,6 +439,8 @@ function loadInventory() {
             inventory.push({ id: doc.id, ...doc.data() });
         });
         updateInventoryTable();
+        updateRestockSuggestions();
+
         if (document.getElementById('relatorio').style.display !== 'none') {
             updateReportCharts();
         }
@@ -346,15 +448,23 @@ function loadInventory() {
 }
 
 function updateInventoryTable() {
-    const searchTerm = searchInput.value.toLowerCase();
-    const category = categoryFilter.value;
+    if (!inventoryBody) return;
+    
+    const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
+    const category = categoryFilter ? categoryFilter.value : '';
     const brand = brandFilter ? brandFilter.value : '';
     
     const filtered = inventory.filter(item => {
         const matchesSearch = item.name.toLowerCase().includes(searchTerm) || 
-                             item.category.toLowerCase().includes(searchTerm);
+                            item.category.toLowerCase().includes(searchTerm);
         const matchesCategory = category === '' || item.category === category;
-        const matchesBrand = brand === '' || item.brand === brand;
+        
+        // Restrição de Marca para Usuários
+        let matchesBrand = brand === '' || item.brand === brand;
+        if (currentUser && currentUser.role !== 'admin' && currentUser.allowedBrand) {
+            matchesBrand = item.brand === currentUser.allowedBrand;
+        }
+        
         return matchesSearch && matchesCategory && matchesBrand;
     });
 
@@ -418,6 +528,77 @@ function updateStats(items) {
     if (totalSalesEl) totalSalesEl.innerText = totalSales;
 }
 
+function updateRestockSuggestions() {
+    if (!restockListEl || !priorityRestockCountEl) return;
+
+    const now = new Date();
+
+    const restockItems = inventory.map(item => {
+        const minQty = item.minQuantity || 5;
+        const currentQty = item.quantity || 0;
+
+        const monthlySales = item.sales ? item.sales.filter(s => {
+            const d = new Date(s.date);
+            return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+        }).reduce((sum, s) => sum + s.quantity, 0) : 0;
+
+        let urgencyScore = 0;
+        let urgencyLabel = 'Acompanhar';
+        let urgencyClass = 'monitor';
+
+        if (currentQty <= minQty) urgencyScore += 5;
+        if (currentQty <= 0) urgencyScore += 5;
+        if (monthlySales >= 5) urgencyScore += 3;
+        if (monthlySales >= 10) urgencyScore += 2;
+        if (currentQty <= Math.ceil(minQty / 2)) urgencyScore += 2;
+
+        if (urgencyScore >= 9) {
+            urgencyLabel = 'Repor urgente';
+            urgencyClass = 'urgent';
+        } else if (urgencyScore >= 6) {
+            urgencyLabel = 'Atenção';
+            urgencyClass = 'attention';
+        } else if (urgencyScore >= 3) {
+            urgencyLabel = 'Monitorar';
+            urgencyClass = 'monitor';
+        } else {
+            urgencyLabel = 'Estável';
+            urgencyClass = 'stable';
+        }
+
+        return { ...item, urgencyScore, urgencyLabel, urgencyClass, monthlySales };
+    }).sort((a, b) => b.urgencyScore - a.urgencyScore);
+
+    const priorityCount = restockItems.filter(i => i.urgencyScore >= 6).length;
+    priorityRestockCountEl.innerText = priorityCount;
+
+    restockListEl.innerHTML = '';
+    if (restockItems.length === 0) {
+        restockListEl.innerHTML = '<p class="empty-restock">Nenhum produto precisa de atenção no momento.</p>';
+        return;
+    }
+
+    restockItems.slice(0, 8).forEach(item => {
+        const div = document.createElement('div');
+        div.className = `restock-item ${item.urgencyClass}`;
+
+        div.innerHTML = `
+            <div class="restock-info">
+                <h4>${item.name}${item.size ? ` (${item.size})` : ''}</h4>
+                <p>${item.category} • ${item.brand || 'Sem Marca'}</p>
+            </div>
+            <div class="restock-meta">
+                <span class="restock-stock">Estoque: <strong>${item.quantity}</strong></span>
+                <span class="restock-min">Mínimo: <strong>${item.minQuantity || 5}</strong></span>
+                <span class="restock-sales">Vendas mês: <strong>${item.monthlySales}</strong></span>
+                <span class="restock-badge ${item.urgencyClass}">${item.urgencyLabel}</span>
+            </div>
+        `;
+
+        restockListEl.appendChild(div);
+    });
+}
+
 // ===== BUSCA E FILTRO =====
 function setupSearchAndFilter() {
     if (searchInput) searchInput.addEventListener('input', updateInventoryTable);
@@ -430,22 +611,23 @@ if (productForm) {
     productForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const id = document.getElementById('product-id').value;
-            const productData = {
-                name: document.getElementById('name').value,
-                category: document.getElementById('category').value,
-                brand: document.getElementById('brand').value,
-                size: document.getElementById('category').value === 'Vestuário' ? document.getElementById('size').value : '',
-                price: parseFloat(document.getElementById('price').value),
-                quantity: parseInt(document.getElementById('quantity').value),
-                minQuantity: parseInt(document.getElementById('min-quantity').value),
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-            };
+        const productData = {
+            name: document.getElementById('name').value,
+            category: document.getElementById('category').value,
+            brand: document.getElementById('brand').value,
+            size: document.getElementById('category').value === 'Vestuário' ? document.getElementById('size').value : '',
+            price: parseFloat(document.getElementById('price').value),
+            quantity: parseInt(document.getElementById('quantity').value),
+            minQuantity: parseInt(document.getElementById('min-quantity').value),
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        };
 
         try {
             if (id) {
                 await db.collection(`inventory_${currentInventoryType}`).doc(id).update(productData);
                 alert('Produto atualizado com sucesso!');
             } else {
+                productData.createdAt = firebase.firestore.FieldValue.serverTimestamp();
                 productData.sales = [];
                 await db.collection(`inventory_${currentInventoryType}`).add(productData);
                 alert('Produto adicionado com sucesso!');
@@ -461,26 +643,25 @@ if (productForm) {
 if (salesForm) {
     salesForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const productId = document.getElementById('sale-product-id').value;
-        const quantity = parseInt(document.getElementById('sale-quantity').value);
+        const id = document.getElementById('sale-product-id').value;
+        const qty = parseInt(document.getElementById('sale-quantity').value);
         const date = document.getElementById('sale-date').value;
         const seller = document.getElementById('sale-seller').value;
         
+        const product = inventory.find(p => p.id === id);
+        if (!product) return;
+        
+        if (qty > product.quantity) {
+            alert('Quantidade vendida maior que o estoque disponível!');
+            return;
+        }
+        
         try {
-            const productRef = db.collection(`inventory_${currentInventoryType}`).doc(productId);
-            const doc = await productRef.get();
-            const product = doc.data();
-            
-            if (product.quantity < quantity) {
-                alert('Quantidade insuficiente em estoque!');
-                return;
-            }
-            
             const newSales = product.sales || [];
-            newSales.push({ date, quantity, seller });
+            newSales.push({ quantity: qty, date: date, seller: seller });
             
-            await productRef.update({
-                quantity: product.quantity - quantity,
+            await db.collection(`inventory_${currentInventoryType}`).doc(id).update({
+                quantity: product.quantity - qty,
                 sales: newSales
             });
             
@@ -696,7 +877,7 @@ function updateReportSummary(date) {
     if (atEl) atEl.innerText = `R$ ${avgTicket.toFixed(2)}`;
 }
 
-        if (btnExportReport) {
+if (btnExportReport) {
     btnExportReport.addEventListener('click', () => {
         const selectedDate = new Date(reportMonth.value + '-01');
         let csvContent = "sep=,\nData,Produto,Vendedor,Categoria,Preço,Quantidade,Faturamento\n";
@@ -721,53 +902,73 @@ function updateReportSummary(date) {
     });
 }
 
-document.querySelectorAll('.nav-link').forEach(link => {
-    link.addEventListener('click', (e) => {
-        e.preventDefault();
-        const target = link.getAttribute('href');
-        if (!target || target === '#') return;
-        
-        document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
-        link.classList.add('active');
-        
-        document.querySelectorAll('.section-content').forEach(s => s.style.display = 'none');
-        const targetSection = document.querySelector(target);
-        if (targetSection) {
-            targetSection.style.display = 'block';
-            if (target === '#relatorio') updateReportCharts();
-        }
+function setupNavLinks() {
+    document.querySelectorAll('.nav-link').forEach(link => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            const target = link.getAttribute('href');
+            if (!target || target === '#') return;
+            
+            document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+            link.classList.add('active');
+            
+            document.querySelectorAll('.section-content').forEach(s => s.style.display = 'none');
+            const targetSection = document.querySelector(target);
+            if (targetSection) {
+                targetSection.style.display = 'block';
+                if (target === '#relatorio') updateReportCharts();
+            }
+        });
     });
-});
-
-closeModals.forEach(c => c.onclick = () => { 
-    if (modal) modal.style.display = 'none'; 
-    if (salesModal) salesModal.style.display = 'none'; 
-    if (resetPasswordModal) resetPasswordModal.style.display = 'none';
-});
-
-window.onclick = (e) => { 
-    if (e.target == modal || e.target == salesModal || e.target == resetPasswordModal) { 
-        if (modal) modal.style.display = 'none'; 
-        if (salesModal) salesModal.style.display = 'none'; 
-        if (resetPasswordModal) resetPasswordModal.style.display = 'none';
-    } 
-};
-
-if (btnAddProduct) {
-    btnAddProduct.onclick = () => { 
-        if (modalTitle) modalTitle.innerText = 'Novo Produto';
-        if (productForm) productForm.reset(); 
-        const sizeGroup = document.getElementById('size-group');
-        if (sizeGroup) sizeGroup.style.display = 'none';
-        const idInput = document.getElementById('product-id');
-        if (idInput) idInput.value = ''; 
-        if (modal) modal.style.display = 'block'; 
-    };
 }
 
-    if (reportMonth) reportMonth.onchange = updateReportCharts;
+function setupModalCloseHandlers() {
+    const closes = document.querySelectorAll('.close');
+    closes.forEach(c => {
+        c.onclick = () => { 
+            console.log("Fechando modais...");
+            if (modal) modal.style.display = 'none'; 
+            if (salesModal) salesModal.style.display = 'none'; 
+            if (resetPasswordModal) resetPasswordModal.style.display = 'none';
+        };
+    });
 
-    // Lógica para mostrar/esconder campo de tamanho
+    window.addEventListener('click', (e) => { 
+        // Garantir que estamos comparando com os elementos corretos
+        const m1 = document.getElementById('product-modal');
+        const m2 = document.getElementById('sales-modal');
+        const m3 = document.getElementById('reset-password-modal');
+        
+        if (e.target === m1 || e.target === m2 || e.target === m3) { 
+            console.log("Clique fora do modal, fechando...");
+            if (m1) m1.style.display = 'none'; 
+            if (m2) m2.style.display = 'none'; 
+            if (m3) m3.style.display = 'none';
+        } 
+    });
+}
+
+function setupButtonListeners() {
+    if (btnAddProduct) {
+        btnAddProduct.onclick = () => { 
+            if (modalTitle) modalTitle.innerText = 'Novo Produto';
+            if (productForm) productForm.reset(); 
+            const sizeGroup = document.getElementById('size-group');
+            if (sizeGroup) sizeGroup.style.display = 'none';
+            const idInput = document.getElementById('product-id');
+            if (idInput) idInput.value = ''; 
+            if (modal) modal.style.display = 'block'; 
+        };
+    }
+
+    if (btnRefreshRestock) {
+        btnRefreshRestock.addEventListener('click', updateRestockSuggestions);
+    }
+
+    if (reportMonth) reportMonth.onchange = updateReportCharts;
+}
+
+function setupCategoryChangeListener() {
     const categorySelect = document.getElementById('category');
     const sizeGroup = document.getElementById('size-group');
     if (categorySelect && sizeGroup) {
@@ -776,7 +977,85 @@ if (btnAddProduct) {
                 sizeGroup.style.display = 'block';
             } else {
                 sizeGroup.style.display = 'none';
-                document.getElementById('size').value = '';
+                const sizeInput = document.getElementById('size');
+                if (sizeInput) sizeInput.value = '';
             }
         });
     }
+}
+
+// ===== AGENTE DE IA INTEGRADO =====
+const aiChatToggle = document.getElementById('ai-chat-toggle');
+const aiChatContainer = document.getElementById('ai-chat-container');
+const aiChatClose = document.getElementById('ai-chat-close');
+const aiChatMessages = document.getElementById('ai-chat-messages');
+const aiUserInput = document.getElementById('ai-user-input');
+const aiSendBtn = document.getElementById('ai-send-btn');
+
+if (aiChatToggle) {
+    aiChatToggle.addEventListener('click', () => {
+        aiChatContainer.style.display = aiChatContainer.style.display === 'none' ? 'flex' : 'none';
+    });
+}
+
+if (aiChatClose) {
+    aiChatClose.addEventListener('click', () => {
+        aiChatContainer.style.display = 'none';
+    });
+}
+
+async function handleAiMessage() {
+    const text = aiUserInput.value.trim();
+    if (!text) return;
+
+    appendMessage('user', text);
+    aiUserInput.value = '';
+
+    const typingMsg = appendMessage('ai', 'Pensando...');
+    
+    setTimeout(() => {
+        typingMsg.remove();
+        const response = generateAiResponse(text);
+        appendMessage('ai', response);
+    }, 1000);
+}
+
+function appendMessage(sender, text) {
+    const msgDiv = document.createElement('div');
+    msgDiv.className = `message ${sender}-message`;
+    msgDiv.innerText = text;
+    aiChatMessages.appendChild(msgDiv);
+    aiChatMessages.scrollTop = aiChatMessages.scrollHeight;
+    return msgDiv;
+}
+
+function generateAiResponse(input) {
+    const query = input.toLowerCase();
+    const lowStock = inventory.filter(p => p.quantity <= p.minQuantity);
+    
+    if (query.includes('promoção') || query.includes('promocao') || query.includes('vender')) {
+        if (inventory.length === 0) return "Ainda não carreguei o estoque. Selecione um estoque primeiro!";
+        const highStock = [...inventory].sort((a, b) => b.quantity - a.quantity).slice(0, 2);
+        return `Sugestão de Promoção: Notei que você tem bastante estoque de "${highStock[0].name}" (${highStock[0].quantity} unidades). Que tal um desconto de 15% para movimentar esse item?`;
+    }
+    
+    if (query.includes('estoque') || query.includes('repor')) {
+        if (lowStock.length > 0) {
+            return `Atenção! Você tem ${lowStock.length} produtos com estoque baixo. Recomendo repor urgentemente o item "${lowStock[0].name}".`;
+        }
+        return "O estoque parece saudável no momento! Todos os itens estão acima da quantidade mínima.";
+    }
+
+    if (query.includes('olá') || query.includes('oi')) {
+        return "Olá! Sou o assistente da PCKL. Posso analisar seu estoque e sugerir promoções. O que deseja saber?";
+    }
+
+    return "Interessante! Posso te ajudar a analisar quais produtos estão parados ou sugerir uma estratégia de vendas baseada no seu estoque atual. Tente perguntar sobre 'promoções' ou 'estoque baixo'.";
+}
+
+if (aiSendBtn) aiSendBtn.addEventListener('click', handleAiMessage);
+if (aiUserInput) {
+    aiUserInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') handleAiMessage();
+    });
+}
