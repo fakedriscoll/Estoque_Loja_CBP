@@ -1,11 +1,4 @@
 // ===== CONFIGURAÇÃO DO FIREBASE =====
-// Configuração Global e Diagnóstico
-window.onerror = function(message, source, lineno, colno, error) {
-    console.error("ERRO GLOBAL DETECTADO:", message, "em", source, "linha:", lineno);
-    return false;
-};
-
-// Variáveis de Configuração
 const firebaseConfig = {
   apiKey: "AIzaSyAVL1-2YEdZNYCwR5siLM0zZpdHGVlg0jc",
   authDomain: "cbp-estoque.firebaseapp.com",
@@ -15,77 +8,46 @@ const firebaseConfig = {
   appId: "1:770580270100:web:7f298f139c8a5d3e5ceb01"
 };
 
-// Inicialização Segura do Firebase
-let auth, db;
-try {
-    firebase.initializeApp(firebaseConfig);
-    auth = firebase.auth();
-    db = firebase.firestore();
-    console.log("Firebase inicializado com sucesso.");
-} catch (e) {
-    console.error("Falha ao inicializar Firebase:", e);
-}
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
 
-// Variáveis de Estado
 let inventory = [];
 let currentInventoryType = null;
 let currentUser = null;
 
-// Elementos do DOM (serão inicializados no initDomElements)
-let selectionScreen, managementScreen, inventoryBody, totalItemsEl, totalValueEl, 
-    lowStockCountEl, totalSalesEl, priorityRestockCountEl, restockListEl, 
-    btnRefreshRestock, searchInput, categoryFilter, brandFilter, 
-    btnAddProduct, btnBackSelection, modal, salesModal, resetPasswordModal, 
-    closeModals, productForm, salesForm, resetPasswordForm, 
-    modalTitle, reportMonth, btnExportReport, currentInventoryName;
-
-function initDomElements() {
-    console.log("Inicializando elementos do DOM...");
-    selectionScreen = document.getElementById('selection-screen');
-    managementScreen = document.getElementById('management-screen');
-    inventoryBody = document.getElementById('inventory-body');
-    totalItemsEl = document.getElementById('total-items');
-    totalValueEl = document.getElementById('total-value');
-    lowStockCountEl = document.getElementById('low-stock-count');
-    totalSalesEl = document.getElementById('total-sales');
-    priorityRestockCountEl = document.getElementById('priority-restock-count');
-    restockListEl = document.getElementById('restock-list');
-    btnRefreshRestock = document.getElementById('btn-refresh-restock');
-    searchInput = document.getElementById('search-input');
-    categoryFilter = document.getElementById('category-filter');
-    brandFilter = document.getElementById('brand-filter');
-    btnAddProduct = document.getElementById('btn-add-product');
-    btnBackSelection = document.getElementById('btn-back-selection');
-    modal = document.getElementById('product-modal');
-    salesModal = document.getElementById('sales-modal');
-    resetPasswordModal = document.getElementById('reset-password-modal');
-    closeModals = document.querySelectorAll('.close');
-    productForm = document.getElementById('product-form');
-    salesForm = document.getElementById('sales-form');
-    resetPasswordForm = document.getElementById('reset-password-form');
-    modalTitle = document.getElementById('modal-title');
-    reportMonth = document.getElementById('report-month');
-    btnExportReport = document.getElementById('btn-export-report');
-    currentInventoryName = document.getElementById('current-inventory-name');
-    
-    console.log("DOM inicializado.");
-    
-    // Mover modais para o final do body para evitar conflitos de stacking context
-    const modais = document.querySelectorAll('.modal');
-    modais.forEach(m => document.body.appendChild(m));
-}
+const selectionScreen = document.getElementById('selection-screen');
+const managementScreen = document.getElementById('management-screen');
+const inventoryBody = document.getElementById('inventory-body');
+const totalItemsEl = document.getElementById('total-items');
+const totalValueEl = document.getElementById('total-value');
+const lowStockCountEl = document.getElementById('low-stock-count');
+const totalSalesEl = document.getElementById('total-sales');
+const priorityRestockCountEl = document.getElementById('priority-restock-count');
+const restockListEl = document.getElementById('restock-list');
+const btnRefreshRestock = document.getElementById('btn-refresh-restock');
+const searchInput = document.getElementById('search-input');
+const categoryFilter = document.getElementById('category-filter');
+const brandFilter = document.getElementById('brand-filter');
+const btnAddProduct = document.getElementById('btn-add-product');
+const btnBackSelection = document.getElementById('btn-back-selection');
+const modal = document.getElementById('product-modal');
+const salesModal = document.getElementById('sales-modal');
+const resetPasswordModal = document.getElementById('reset-password-modal');
+const closeModals = document.querySelectorAll('.close');
+const productForm = document.getElementById('product-form');
+const salesForm = document.getElementById('sales-form');
+const resetPasswordForm = document.getElementById('reset-password-form');
+const modalTitle = document.getElementById('modal-title');
+const reportMonth = document.getElementById('report-month');
+const btnExportReport = document.getElementById('btn-export-report');
+const currentInventoryName = document.getElementById('current-inventory-name');
 
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("DOM carregado, iniciando sistema...");
-    initDomElements();
     setupAuthListeners();
     checkAuthState();
     setupSearchAndFilter();
     setupResetPasswordListener();
-    setupNavLinks();
-    setupModalCloseHandlers();
-    setupCategoryChangeListener();
-    setupButtonListeners();
 });
 
 // ===== AUTENTICAÇÃO =====
@@ -263,10 +225,8 @@ function handleLogout() {
 
 // ===== PAINEL ADMIN =====
 function showAdminPanel() {
-    console.log("Exibindo painel de administrador...");
     document.getElementById('admin-screen').style.display = 'flex';
     db.collection('users').onSnapshot(snapshot => {
-        console.log("Recebida atualização de usuários, total:", snapshot.size);
         const requestsBody = document.getElementById('users-requests-body');
         if (!requestsBody) return;
         requestsBody.innerHTML = '';
@@ -276,15 +236,12 @@ function showAdminPanel() {
                 const row = document.createElement('tr');
                 const userPassword = user.password || '***';
                 const userBrand = user.allowedBrand || 'Todas';
-                const safeUsername = (user.username || "").replace(/'/g, "\\'");
-                const safeBrand = (user.allowedBrand || "").replace(/'/g, "\\'");
-                
                 row.innerHTML = `
                     <td>${user.username}</td>
                     <td><span class="password-display">${userPassword}</span></td>
                     <td><span class="status-badge status-${user.status}">${user.status}</span> <br> <small>Marca: ${userBrand}</small></td>
                     <td>
-                        <button class="btn-reset-password edit-user-btn" onclick="console.log('Botão Editar clicado!'); window.openResetPasswordModal('${doc.id}', '${safeUsername}', '${safeBrand}')"><i class="fas fa-edit"></i> Editar</button>
+                        <button class="btn-reset-password edit-user-btn" data-id="${doc.id}" data-username="${user.username}" data-brand="${user.allowedBrand || ''}"><i class="fas fa-key"></i> Editar</button>
                         ${user.status === 'pending' ? `
                             <button class="btn-approve" onclick="updateUserStatus('${doc.id}', 'approved')">Aprovar</button>
                             <button class="btn-reject" onclick="updateUserStatus('${doc.id}', 'rejected')">Recusar</button>
@@ -295,6 +252,16 @@ function showAdminPanel() {
                 `;
                 requestsBody.appendChild(row);
             }
+        });
+
+        // Adiciona listeners para os botões de editar (forma mais segura que onclick inline)
+        document.querySelectorAll('.edit-user-btn').forEach(btn => {
+            btn.onclick = () => {
+                const uid = btn.getAttribute('data-id');
+                const username = btn.getAttribute('data-username');
+                const brand = btn.getAttribute('data-brand');
+                openResetPasswordModal(uid, username, brand);
+            };
         });
     });
 }
@@ -310,43 +277,13 @@ window.deleteUser = (uid) => {
 };
 
 window.openResetPasswordModal = (uid, username, brand) => {
-    console.log("Abrindo modal para usuário:", username, "UID:", uid, "Marca:", brand);
-    
     const idInput = document.getElementById('reset-user-id');
     const nameInput = document.getElementById('edit-username');
     const brandInput = document.getElementById('edit-brand');
-    const modalElement = document.getElementById('reset-password-modal');
-    
-    console.log("Elementos encontrados:", {
-        idInput: !!idInput,
-        nameInput: !!nameInput,
-        brandInput: !!brandInput,
-        modalElement: !!modalElement
-    });
-
     if (idInput) idInput.value = uid;
     if (nameInput) nameInput.value = username;
-    if (brandInput) {
-        // Garantir que o valor existe nas opções antes de atribuir
-        const options = Array.from(brandInput.options).map(opt => opt.value);
-        const brandToSet = brand && brand !== 'undefined' ? brand : '';
-        if (options.includes(brandToSet)) {
-            brandInput.value = brandToSet;
-        } else {
-            brandInput.value = ''; // Default para "Todas"
-        }
-    }
-    
-    if (modalElement) {
-        modalElement.style.display = 'block';
-        console.log("Modal exibido via modalElement");
-    } else if (resetPasswordModal) {
-        resetPasswordModal.style.display = 'block';
-        console.log("Modal exibido via resetPasswordModal");
-    } else {
-        console.error("ERRO: Modal não encontrado!");
-        alert("Erro crítico: O modal de edição não foi encontrado na página.");
-    }
+    if (brandInput) brandInput.value = brand || '';
+    if (resetPasswordModal) resetPasswordModal.style.display = 'block';
 };
 
 function setupResetPasswordListener() {
@@ -357,39 +294,21 @@ function setupResetPasswordListener() {
             const newUsername = document.getElementById('edit-username').value.trim();
             const newPassword = document.getElementById('new-password').value;
             const confirmPassword = document.getElementById('confirm-password').value;
-            const selectedBrand = document.getElementById('edit-brand').value;
-
-            if (!uid) {
-                alert('Erro: ID do usuário não encontrado.');
-                return;
-            }
-
-            if (!newUsername) {
-                alert('Por favor, insira um nome de usuário.');
-                return;
-            }
 
             if (newPassword && newPassword !== confirmPassword) {
                 alert('As senhas não coincidem!');
                 return;
             }
 
-            if (newPassword && newPassword.length < 6) {
-                alert('A senha deve ter pelo menos 6 caracteres!');
-                return;
-            }
-
             try {
                 const updateData = { 
                     username: newUsername,
-                    allowedBrand: selectedBrand || ''
+                    allowedBrand: document.getElementById('edit-brand').value
                 };
                 if (newPassword) updateData.password = newPassword;
                 
                 await db.collection('users').doc(uid).update(updateData);
-                alert('Usuário atualizado com sucesso! Marca permitida: ' + (selectedBrand || 'Todas'));
-                const modalElement = document.getElementById('reset-password-modal');
-                if (modalElement) modalElement.style.display = 'none';
+                alert('Usuário atualizado com sucesso!');
                 if (resetPasswordModal) resetPasswordModal.style.display = 'none';
                 resetPasswordForm.reset();
             } catch (error) {
@@ -558,25 +477,35 @@ function updateRestockSuggestions() {
         } else if (urgencyScore >= 6) {
             urgencyLabel = 'Atenção';
             urgencyClass = 'attention';
-        } else if (urgencyScore >= 3) {
-            urgencyLabel = 'Monitorar';
+        } else if (urgencyScore >= 4) {
+            urgencyLabel = 'Acompanhar';
             urgencyClass = 'monitor';
         } else {
             urgencyLabel = 'Estável';
             urgencyClass = 'stable';
         }
 
-        return { ...item, urgencyScore, urgencyLabel, urgencyClass, monthlySales };
-    }).sort((a, b) => b.urgencyScore - a.urgencyScore);
+        return {
+            ...item,
+            monthlySales,
+            urgencyScore,
+            urgencyLabel,
+            urgencyClass
+        };
+    })
+    .filter(item => item.urgencyScore >= 4)
+    .sort((a, b) => b.urgencyScore - a.urgencyScore || a.quantity - b.quantity);
 
-    const priorityCount = restockItems.filter(i => i.urgencyScore >= 6).length;
-    priorityRestockCountEl.innerText = priorityCount;
+    priorityRestockCountEl.innerText = restockItems.length;
 
-    restockListEl.innerHTML = '';
     if (restockItems.length === 0) {
-        restockListEl.innerHTML = '<p class="empty-restock">Nenhum produto precisa de atenção no momento.</p>';
+        restockListEl.innerHTML = `
+            <p class="empty-restock">Nenhum produto precisa de atenção no momento.</p>
+        `;
         return;
     }
+
+    restockListEl.innerHTML = '';
 
     restockItems.slice(0, 8).forEach(item => {
         const div = document.createElement('div');
@@ -611,23 +540,22 @@ if (productForm) {
     productForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const id = document.getElementById('product-id').value;
-        const productData = {
-            name: document.getElementById('name').value,
-            category: document.getElementById('category').value,
-            brand: document.getElementById('brand').value,
-            size: document.getElementById('category').value === 'Vestuário' ? document.getElementById('size').value : '',
-            price: parseFloat(document.getElementById('price').value),
-            quantity: parseInt(document.getElementById('quantity').value),
-            minQuantity: parseInt(document.getElementById('min-quantity').value),
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        };
+            const productData = {
+                name: document.getElementById('name').value,
+                category: document.getElementById('category').value,
+                brand: document.getElementById('brand').value,
+                size: document.getElementById('category').value === 'Vestuário' ? document.getElementById('size').value : '',
+                price: parseFloat(document.getElementById('price').value),
+                quantity: parseInt(document.getElementById('quantity').value),
+                minQuantity: parseInt(document.getElementById('min-quantity').value),
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
 
         try {
             if (id) {
                 await db.collection(`inventory_${currentInventoryType}`).doc(id).update(productData);
                 alert('Produto atualizado com sucesso!');
             } else {
-                productData.createdAt = firebase.firestore.FieldValue.serverTimestamp();
                 productData.sales = [];
                 await db.collection(`inventory_${currentInventoryType}`).add(productData);
                 alert('Produto adicionado com sucesso!');
@@ -643,25 +571,26 @@ if (productForm) {
 if (salesForm) {
     salesForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const id = document.getElementById('sale-product-id').value;
-        const qty = parseInt(document.getElementById('sale-quantity').value);
+        const productId = document.getElementById('sale-product-id').value;
+        const quantity = parseInt(document.getElementById('sale-quantity').value);
         const date = document.getElementById('sale-date').value;
         const seller = document.getElementById('sale-seller').value;
         
-        const product = inventory.find(p => p.id === id);
-        if (!product) return;
-        
-        if (qty > product.quantity) {
-            alert('Quantidade vendida maior que o estoque disponível!');
-            return;
-        }
-        
         try {
-            const newSales = product.sales || [];
-            newSales.push({ quantity: qty, date: date, seller: seller });
+            const productRef = db.collection(`inventory_${currentInventoryType}`).doc(productId);
+            const doc = await productRef.get();
+            const product = doc.data();
             
-            await db.collection(`inventory_${currentInventoryType}`).doc(id).update({
-                quantity: product.quantity - qty,
+            if (product.quantity < quantity) {
+                alert('Quantidade insuficiente em estoque!');
+                return;
+            }
+            
+            const newSales = product.sales || [];
+            newSales.push({ date, quantity, seller });
+            
+            await productRef.update({
+                quantity: product.quantity - quantity,
                 sales: newSales
             });
             
@@ -877,7 +806,7 @@ function updateReportSummary(date) {
     if (atEl) atEl.innerText = `R$ ${avgTicket.toFixed(2)}`;
 }
 
-if (btnExportReport) {
+        if (btnExportReport) {
     btnExportReport.addEventListener('click', () => {
         const selectedDate = new Date(reportMonth.value + '-01');
         let csvContent = "sep=,\nData,Produto,Vendedor,Categoria,Preço,Quantidade,Faturamento\n";
@@ -902,73 +831,61 @@ if (btnExportReport) {
     });
 }
 
-function setupNavLinks() {
-    document.querySelectorAll('.nav-link').forEach(link => {
-        link.addEventListener('click', (e) => {
-            e.preventDefault();
-            const target = link.getAttribute('href');
-            if (!target || target === '#') return;
-            
-            document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
-            link.classList.add('active');
-            
-            document.querySelectorAll('.section-content').forEach(s => s.style.display = 'none');
-            const targetSection = document.querySelector(target);
-            if (targetSection) {
-                targetSection.style.display = 'block';
-                if (target === '#relatorio') updateReportCharts();
-            }
-        });
-    });
-}
-
-function setupModalCloseHandlers() {
-    const closes = document.querySelectorAll('.close');
-    closes.forEach(c => {
-        c.onclick = () => { 
-            console.log("Fechando modais...");
-            if (modal) modal.style.display = 'none'; 
-            if (salesModal) salesModal.style.display = 'none'; 
-            if (resetPasswordModal) resetPasswordModal.style.display = 'none';
-        };
-    });
-
-    window.addEventListener('click', (e) => { 
-        // Garantir que estamos comparando com os elementos corretos
-        const m1 = document.getElementById('product-modal');
-        const m2 = document.getElementById('sales-modal');
-        const m3 = document.getElementById('reset-password-modal');
+document.querySelectorAll('.nav-link').forEach(link => {
+    link.addEventListener('click', (e) => {
+        e.preventDefault();
+        const target = link.getAttribute('href');
+        if (!target || target === '#') return;
         
-        if (e.target === m1 || e.target === m2 || e.target === m3) { 
-            console.log("Clique fora do modal, fechando...");
-            if (m1) m1.style.display = 'none'; 
-            if (m2) m2.style.display = 'none'; 
-            if (m3) m3.style.display = 'none';
-        } 
+        document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+        link.classList.add('active');
+        
+        document.querySelectorAll('.section-content').forEach(s => s.style.display = 'none');
+        const targetSection = document.querySelector(target);
+        if (targetSection) {
+            targetSection.style.display = 'block';
+            if (target === '#relatorio') updateReportCharts();
+        }
     });
+});
+
+closeModals.forEach(c => c.onclick = () => { 
+    if (modal) modal.style.display = 'none'; 
+    if (salesModal) salesModal.style.display = 'none'; 
+    if (resetPasswordModal) resetPasswordModal.style.display = 'none';
+});
+
+window.onclick = (e) => { 
+    if (e.target == modal || e.target == salesModal || e.target == resetPasswordModal) { 
+        if (modal) modal.style.display = 'none'; 
+        if (salesModal) salesModal.style.display = 'none'; 
+        if (resetPasswordModal) resetPasswordModal.style.display = 'none';
+    } 
+};
+
+if (btnAddProduct) {
+    btnAddProduct.onclick = () => { 
+        if (modalTitle) modalTitle.innerText = 'Novo Produto';
+        if (productForm) productForm.reset(); 
+        const sizeGroup = document.getElementById('size-group');
+        if (sizeGroup) sizeGroup.style.display = 'none';
+        const idInput = document.getElementById('product-id');
+        if (idInput) idInput.value = ''; 
+        if (modal) modal.style.display = 'block'; 
+    };
 }
 
-function setupButtonListeners() {
-    if (btnAddProduct) {
-        btnAddProduct.onclick = () => { 
-            if (modalTitle) modalTitle.innerText = 'Novo Produto';
-            if (productForm) productForm.reset(); 
-            const sizeGroup = document.getElementById('size-group');
-            if (sizeGroup) sizeGroup.style.display = 'none';
-            const idInput = document.getElementById('product-id');
-            if (idInput) idInput.value = ''; 
-            if (modal) modal.style.display = 'block'; 
-        };
-    }
+// 👇 COLE AQUI
+if (btnRefreshRestock) {
+    btnRefreshRestock.addEventListener('click', updateRestockSuggestions);
+}
 
-    if (btnRefreshRestock) {
-        btnRefreshRestock.addEventListener('click', updateRestockSuggestions);
-    }
+
+if (reportMonth) reportMonth.onchange = updateReportCharts;
 
     if (reportMonth) reportMonth.onchange = updateReportCharts;
-}
 
-function setupCategoryChangeListener() {
+    // Lógica para mostrar/esconder campo de tamanho
     const categorySelect = document.getElementById('category');
     const sizeGroup = document.getElementById('size-group');
     if (categorySelect && sizeGroup) {
@@ -977,13 +894,10 @@ function setupCategoryChangeListener() {
                 sizeGroup.style.display = 'block';
             } else {
                 sizeGroup.style.display = 'none';
-                const sizeInput = document.getElementById('size');
-                if (sizeInput) sizeInput.value = '';
+                document.getElementById('size').value = '';
             }
         });
     }
-}
-
 // ===== AGENTE DE IA INTEGRADO =====
 const aiChatToggle = document.getElementById('ai-chat-toggle');
 const aiChatContainer = document.getElementById('ai-chat-container');
@@ -1008,9 +922,11 @@ async function handleAiMessage() {
     const text = aiUserInput.value.trim();
     if (!text) return;
 
+    // Adiciona mensagem do usuário
     appendMessage('user', text);
     aiUserInput.value = '';
 
+    // Simula processamento da IA
     const typingMsg = appendMessage('ai', 'Pensando...');
     
     setTimeout(() => {
@@ -1031,10 +947,14 @@ function appendMessage(sender, text) {
 
 function generateAiResponse(input) {
     const query = input.toLowerCase();
+    
+    // Dados para a IA analisar
     const lowStock = inventory.filter(p => p.quantity <= p.minQuantity);
+    const totalValue = inventory.reduce((sum, p) => sum + (p.price * p.quantity), 0);
     
     if (query.includes('promoção') || query.includes('promocao') || query.includes('vender')) {
         if (inventory.length === 0) return "Ainda não carreguei o estoque. Selecione um estoque primeiro!";
+        
         const highStock = [...inventory].sort((a, b) => b.quantity - a.quantity).slice(0, 2);
         return `Sugestão de Promoção: Notei que você tem bastante estoque de "${highStock[0].name}" (${highStock[0].quantity} unidades). Que tal um desconto de 15% para movimentar esse item?`;
     }
