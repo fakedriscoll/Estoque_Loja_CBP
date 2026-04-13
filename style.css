@@ -501,39 +501,29 @@ tr:hover {
 /* Modal */
 .modal {
     display: none;
-    position: fixed !important; /* Força a posição fixa */
-    z-index: 100000 !important; /* Z-index absurdamente alto para ganhar de tudo */
+    position: fixed;
+    z-index: 1000;
     left: 0;
     top: 0;
-    width: 100vw;
-    height: 100vh;
-    background-color: rgba(0,0,0,0.85); /* Fundo bem escuro para foco */
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
     animation: fadeIn 0.2s;
-    overflow-y: auto;
-    align-items: center;
-    justify-content: center;
-}
-
-/* Forçar exibição e garantir que o display flex funcione para centralizar se necessário */
-.modal[style*="display: block"] {
-    display: flex !important;
+    overflow-y: auto; /* Permite rolagem no fundo se necessário */
 }
 
 .modal-content {
     background-color: var(--white);
-    margin: auto; /* Centralização automática */
-    padding: 25px;
-    width: 95%;
-    max-width: 500px; /* Reduzido para ficar mais elegante */
+    margin: 2% auto; /* Reduzido de 5% para 2% para ganhar espaço */
+    padding: 25px; /* Reduzido de 30px para 25px */
+    width: 95%; /* Aumentado de 90% para 95% */
+    max-width: 600px;
     border-radius: var(--border-radius);
     position: relative;
-    box-shadow: 0 20px 50px rgba(0,0,0,0.5);
-    max-height: 90vh;
-    overflow-y: auto;
-    z-index: 100001 !important;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    max-height: 95vh; /* Limita a altura do conteúdo */
+    overflow-y: auto; /* Adiciona rolagem interna se o conteúdo exceder a altura */
 }
-
-
 
 .close {
     position: absolute;
