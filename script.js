@@ -574,6 +574,8 @@ if (salesForm) {
         const productId = document.getElementById('sale-product-id').value;
         const quantity = parseInt(document.getElementById('sale-quantity').value);
         const date = document.getElementById('sale-date').value;
+        const time = document.getElementById('sale-time').value;
+        const brand = document.getElementById('sale-brand').value;
         const seller = document.getElementById('sale-seller').value;
         
         try {
@@ -587,16 +589,22 @@ if (salesForm) {
             }
             
             const newSales = product.sales || [];
-            newSales.push({ date, quantity, seller });
+            newSales.push({ date, time, quantity, seller, brand });
             
             await productRef.update({
                 quantity: product.quantity - quantity,
                 sales: newSales
             });
             
+            updateInventoryTable();
+            
             alert('Venda registrada com sucesso!');
             if (salesModal) salesModal.style.display = 'none';
             salesForm.reset();
+            
+            if (document.getElementById('relatorio').style.display !== 'none') {
+                updateReportCharts();
+            }
         } catch (error) {
             alert('Erro ao registrar venda: ' + error.message);
         }
@@ -654,11 +662,23 @@ window.openSalesModal = (id) => {
     const nameDisplay = document.getElementById('sale-product-name');
     const qtyInput = document.getElementById('sale-quantity');
     const dateInput = document.getElementById('sale-date');
+    const timeInput = document.getElementById('sale-time');
+    const brandInput = document.getElementById('sale-brand');
     
     if (idInput) idInput.value = id;
     if (nameDisplay) nameDisplay.innerText = product.name;
     if (qtyInput) qtyInput.value = '';
-    if (dateInput) dateInput.valueAsDate = new Date();
+    
+    const now = new Date();
+    if (dateInput) dateInput.valueAsDate = now;
+    
+    if (timeInput) {
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        timeInput.value = `${hours}:${minutes}`;
+    }
+    
+    if (brandInput) brandInput.value = product.brand || '';
     
     if (salesModal) salesModal.style.display = 'block';
 };
@@ -809,14 +829,16 @@ function updateReportSummary(date) {
         if (btnExportReport) {
     btnExportReport.addEventListener('click', () => {
         const selectedDate = new Date(reportMonth.value + '-01');
-        let csvContent = "sep=,\nData,Produto,Vendedor,Categoria,Preço,Quantidade,Faturamento\n";
+        let csvContent = "sep=,\nData,Horário,Produto,Marca,Vendedor,Categoria,Preço,Quantidade,Faturamento\n";
         inventory.forEach(p => {
             if (p.sales) {
                 p.sales.forEach(s => {
                     const d = new Date(s.date);
                     if (d.getFullYear() === selectedDate.getFullYear() && d.getMonth() === selectedDate.getMonth()) {
                         const seller = s.seller || "N/A";
-                        csvContent += `${s.date},"${p.name}","${seller}",${p.category},${(p.price || 0).toFixed(2)},${s.quantity},${(s.quantity * (p.price || 0)).toFixed(2)}\n`;
+                        const time = s.time || "--:--";
+                        const brand = s.brand || "N/A";
+                        csvContent += `${s.date},${time},"${p.name}","${brand}","${seller}",${p.category},${(p.price || 0).toFixed(2)},${s.quantity},${(s.quantity * (p.price || 0)).toFixed(2)}\n`;
                     }
                 });
             }
