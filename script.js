@@ -575,8 +575,9 @@ if (salesForm) {
         const quantity = parseInt(document.getElementById('sale-quantity').value);
         const date = document.getElementById('sale-date').value;
         const time = document.getElementById('sale-time').value;
-        const brand = document.getElementById('sale-brand').value;
         const seller = document.getElementById('sale-seller').value;
+        const discount = parseFloat(document.getElementById('sale-discount').value) || 0;
+        const description = document.getElementById('sale-description').value.trim();
         
         try {
             const productRef = db.collection(`inventory_${currentInventoryType}`).doc(productId);
@@ -588,23 +589,29 @@ if (salesForm) {
                 return;
             }
             
+            const unitPrice = product.price || 0;
+            const totalOriginal = unitPrice * quantity;
+            const totalWithDiscount = totalOriginal * (1 - (discount / 100));
+            
             const newSales = product.sales || [];
-            newSales.push({ date, time, quantity, seller, brand });
+            newSales.push({ 
+                date, 
+                time,
+                quantity, 
+                seller, 
+                discount, 
+                totalWithDiscount, 
+                description 
+            });
             
             await productRef.update({
                 quantity: product.quantity - quantity,
                 sales: newSales
             });
             
-            updateInventoryTable();
-            
             alert('Venda registrada com sucesso!');
             if (salesModal) salesModal.style.display = 'none';
             salesForm.reset();
-            
-            if (document.getElementById('relatorio').style.display !== 'none') {
-                updateReportCharts();
-            }
         } catch (error) {
             alert('Erro ao registrar venda: ' + error.message);
         }
@@ -663,25 +670,47 @@ window.openSalesModal = (id) => {
     const qtyInput = document.getElementById('sale-quantity');
     const dateInput = document.getElementById('sale-date');
     const timeInput = document.getElementById('sale-time');
-    const brandInput = document.getElementById('sale-brand');
+    const discountInput = document.getElementById('sale-discount');
+    const descriptionInput = document.getElementById('sale-description');
     
     if (idInput) idInput.value = id;
     if (nameDisplay) nameDisplay.innerText = product.name;
     if (qtyInput) qtyInput.value = '';
+    if (dateInput) dateInput.valueAsDate = new Date();
+    if (timeInput) timeInput.value = new Date().toTimeString().slice(0, 5);
+    if (discountInput) discountInput.value = 0;
+    if (descriptionInput) descriptionInput.value = '';
     
-    const now = new Date();
-    if (dateInput) dateInput.valueAsDate = now;
-    
-    if (timeInput) {
-        const hours = String(now.getHours()).padStart(2, '0');
-        const minutes = String(now.getMinutes()).padStart(2, '0');
-        timeInput.value = `${hours}:${minutes}`;
-    }
-    
-    if (brandInput) brandInput.value = product.brand || '';
+    updateSalePreview();
     
     if (salesModal) salesModal.style.display = 'block';
 };
+
+// ===== FUNÇÃO PARA ATUALIZAR PREVIEW DE DESCONTO =====
+function updateSalePreview() {
+    const productId = document.getElementById('sale-product-id').value;
+    const product = inventory.find(p => p.id === productId);
+    if (!product) return;
+
+    const quantity = parseInt(document.getElementById('sale-quantity').value) || 0;
+    const discount = parseFloat(document.getElementById('sale-discount').value) || 0;
+    const unitPrice = product.price || 0;
+    
+    const totalOriginal = unitPrice * quantity;
+    const totalWithDiscount = totalOriginal * (1 - (discount / 100));
+    
+    const saleTotalPreview = document.getElementById('sale-total-preview');
+    if (saleTotalPreview) {
+        saleTotalPreview.innerText = `R$ ${totalWithDiscount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`.replace('R$', 'R$').trim();
+    }
+}
+
+// Adicionar listeners para atualizar o preview em tempo real
+const saleQtyInput = document.getElementById('sale-quantity');
+const saleDiscountInput = document.getElementById('sale-discount');
+
+if (saleQtyInput) saleQtyInput.addEventListener('input', updateSalePreview);
+if (saleDiscountInput) saleDiscountInput.addEventListener('input', updateSalePreview);
 
 // ===== RELATÓRIOS E EXPORTAÇÃO =====
 let salesByProductChart, monthlySalesChart;
@@ -829,16 +858,14 @@ function updateReportSummary(date) {
         if (btnExportReport) {
     btnExportReport.addEventListener('click', () => {
         const selectedDate = new Date(reportMonth.value + '-01');
-        let csvContent = "sep=,\nData,Horário,Produto,Marca,Vendedor,Categoria,Preço,Quantidade,Faturamento\n";
+        let csvContent = "sep=,\nData,Produto,Vendedor,Categoria,Preço,Quantidade,Faturamento\n";
         inventory.forEach(p => {
             if (p.sales) {
                 p.sales.forEach(s => {
                     const d = new Date(s.date);
                     if (d.getFullYear() === selectedDate.getFullYear() && d.getMonth() === selectedDate.getMonth()) {
                         const seller = s.seller || "N/A";
-                        const time = s.time || "--:--";
-                        const brand = s.brand || "N/A";
-                        csvContent += `${s.date},${time},"${p.name}","${brand}","${seller}",${p.category},${(p.price || 0).toFixed(2)},${s.quantity},${(s.quantity * (p.price || 0)).toFixed(2)}\n`;
+                        csvContent += `${s.date},"${p.name}","${seller}",${p.category},${(p.price || 0).toFixed(2)},${s.quantity},${(s.quantity * (p.price || 0)).toFixed(2)}\n`;
                     }
                 });
             }
