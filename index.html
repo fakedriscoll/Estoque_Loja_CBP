@@ -411,16 +411,20 @@
                             <label for="sale-time">Horário da Venda</label>
                             <input type="time" id="sale-time" required>
                         </div>
+                    </div>
+                    <div class="form-row">
                         <div class="form-group">
-                            <label for="sale-brand">Marca do Produto</label>
-                            <select id="sale-brand" required>
-                                <option value="">Selecione a Marca</option>
-                                <option value="MASASPORT">MASASPORT</option>
-                                <option value="JOOLA">JOOLA</option>
-                                <option value="ZCBRA">ZCBRA</option>
-                                <option value="HYPERLIGHT">HYPERLIGHT</option>
-                            </select>
+                            <label for="sale-discount">Desconto (%)</label>
+                            <input type="number" id="sale-discount" min="0" max="100" step="0.1" value="0">
                         </div>
+                        <div class="form-group">
+                            <label>Total com Desconto</label>
+                            <p id="sale-total-preview" style="font-weight: bold; color: var(--success-color); margin-top: 10px;">R$ 0,00</p>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="sale-description">Descrição / Observação</label>
+                        <textarea id="sale-description" placeholder="Adicione uma descrição para esta venda" rows="3" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; resize: vertical;"></textarea>
                     </div>
                     <div class="form-group">
                         <label for="sale-seller">Nome do Vendedor</label>
