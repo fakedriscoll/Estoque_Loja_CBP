@@ -594,14 +594,15 @@ if (salesForm) {
             const totalWithDiscount = totalOriginal * (1 - (discount / 100));
             
             const newSales = product.sales || [];
-            newSales.push({ 
-                date, 
+            newSales.push({
+                date,
                 time,
-                quantity, 
-                seller, 
-                discount, 
-                totalWithDiscount, 
-                description 
+                quantity,
+                seller,
+                discount,
+                totalOriginal,
+                totalWithDiscount,
+                description
             });
             
             await productRef.update({
@@ -722,16 +723,59 @@ function setCurrentMonth() {
     if (reportMonth) reportMonth.value = `${year}-${month}`;
 }
 
+function getSaleDateParts(value) {
+    if (!value) return null;
+
+    if (typeof value === 'object' && typeof value.toDate === 'function') {
+        const date = value.toDate();
+        return { year: date.getFullYear(), month: date.getMonth() };
+    }
+
+    const text = String(value).trim();
+    let match = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (match) return { year: Number(match[1]), month: Number(match[2]) - 1 };
+
+    match = text.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/);
+    if (match) return { year: Number(match[3]), month: Number(match[2]) - 1 };
+
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return null;
+    return { year: parsed.getFullYear(), month: parsed.getMonth() };
+}
+
+function isSaleInMonth(sale, selectedDate) {
+    const saleDate = getSaleDateParts(sale.date || sale.data || sale.saleDate || sale.dataVenda);
+    return Boolean(saleDate && saleDate.year === selectedDate.getFullYear() && saleDate.month === selectedDate.getMonth());
+}
+
+function getSelectedMonthDate() {
+    if (!reportMonth || !/^\d{4}-\d{2}$/.test(reportMonth.value)) return null;
+    const [year, month] = reportMonth.value.split('-').map(Number);
+    return new Date(year, month - 1, 1);
+}
+
+function getProductSales(product) {
+    const rawSales = product.sales ?? product.vendas ?? [];
+    if (Array.isArray(rawSales)) return rawSales;
+    if (typeof rawSales === 'string') {
+        try {
+            const parsed = JSON.parse(rawSales);
+            return Array.isArray(parsed) ? parsed : [];
+        } catch (error) {
+            return [];
+        }
+    }
+    return [];
+}
+
 function updateReportCharts() {
     if (!reportMonth || !reportMonth.value) return;
-    const selectedDate = new Date(reportMonth.value + '-01');
+    const selectedDate = getSelectedMonthDate();
+    if (!selectedDate) return;
     const productNames = inventory.map(p => p.name);
     const productSales = inventory.map(p => {
-        if (!p.sales) return 0;
-        return p.sales.filter(s => {
-            const d = new Date(s.date);
-            return d.getFullYear() === selectedDate.getFullYear() && d.getMonth() === selectedDate.getMonth();
-        }).reduce((sum, s) => sum + s.quantity, 0);
+        return getProductSales(p).filter(s => isSaleInMonth(s, selectedDate))
+            .reduce((sum, s) => sum + Number(s.quantity || s.quantidade || 0), 0);
     });
 
     const canvas1 = document.getElementById('salesByProductChart');
@@ -778,13 +822,8 @@ function updateMonthlySalesChart(selectedDate) {
         
         let totalSales = 0;
         inventory.forEach(p => {
-            if (p.sales) {
-                totalSales += p.sales.filter(s => {
-                    const saleDate = new Date(s.date);
-                    return saleDate.getFullYear() === date.getFullYear() && 
-                           saleDate.getMonth() === date.getMonth();
-                }).reduce((sum, s) => sum + s.quantity, 0);
-            }
+            totalSales += getProductSales(p).filter(s => isSaleInMonth(s, date))
+                .reduce((sum, s) => sum + Number(s.quantity || s.quantidade || 0), 0);
         });
         monthlySalesData.push(totalSales);
     }
@@ -827,14 +866,15 @@ function updateReportSummary(date) {
     let topProductQty = 0;
     
     inventory.forEach(p => {
-        if (!p.sales) return;
-        const monthSales = p.sales.filter(s => {
-            const d = new Date(s.date);
-            return d.getFullYear() === date.getFullYear() && d.getMonth() === date.getMonth();
-        });
-        const qty = monthSales.reduce((sum, s) => sum + s.quantity, 0);
+        const monthSales = getProductSales(p).filter(s => isSaleInMonth(s, date));
+        const qty = monthSales.reduce((sum, s) => sum + Number(s.quantity || s.quantidade || 0), 0);
         totalSales += qty;
-        totalRevenue += qty * (p.price || 0);
+        totalRevenue += monthSales.reduce((sum, s) => {
+            const quantity = Number(s.quantity || s.quantidade || 0);
+            const originalTotal = Number(s.totalOriginal ?? ((p.price || 0) * quantity));
+            const discountedTotal = Number(s.totalWithDiscount ?? originalTotal);
+            return sum + (Number.isFinite(discountedTotal) ? discountedTotal : originalTotal);
+        }, 0);
         
         if (qty > topProductQty) {
             topProductQty = qty;
@@ -855,27 +895,81 @@ function updateReportSummary(date) {
     if (atEl) atEl.innerText = `R$ ${avgTicket.toFixed(2)}`;
 }
 
-        if (btnExportReport) {
+function csvEscape(value) {
+    return `"${String(value ?? '').replace(/"/g, '""').replace(/\r?\n/g, ' ')}"`;
+}
+
+function getSaleTotals(product, sale) {
+    const quantity = Number(sale.quantity || sale.quantidade || 0);
+    const unitPrice = Number(product.price || 0);
+    const originalTotal = Number(sale.totalOriginal ?? (unitPrice * quantity));
+    const discount = Number(sale.discount ?? sale.desconto ?? 0);
+    const totalWithDiscount = Number(sale.totalWithDiscount ?? sale.totalComDesconto ?? (originalTotal * (1 - discount / 100)));
+
+    return {
+        quantity,
+        unitPrice,
+        originalTotal: Number.isFinite(originalTotal) ? originalTotal : 0,
+        discount: Number.isFinite(discount) ? discount : 0,
+        totalWithDiscount: Number.isFinite(totalWithDiscount) ? totalWithDiscount : 0
+    };
+}
+
+if (btnExportReport) {
     btnExportReport.addEventListener('click', () => {
-        const selectedDate = new Date(reportMonth.value + '-01');
-        let csvContent = "sep=,\nData,Produto,Vendedor,Categoria,Preço,Quantidade,Faturamento\n";
-        inventory.forEach(p => {
-            if (p.sales) {
-                p.sales.forEach(s => {
-                    const d = new Date(s.date);
-                    if (d.getFullYear() === selectedDate.getFullYear() && d.getMonth() === selectedDate.getMonth()) {
-                        const seller = s.seller || "N/A";
-                        csvContent += `${s.date},"${p.name}","${seller}",${p.category},${(p.price || 0).toFixed(2)},${s.quantity},${(s.quantity * (p.price || 0)).toFixed(2)}\n`;
-                    }
-                });
-            }
+        if (!reportMonth || !reportMonth.value) {
+            alert('Selecione o mês do relatório.');
+            return;
+        }
+
+        const selectedDate = getSelectedMonthDate();
+        if (!selectedDate) {
+            alert('Selecione um mês válido para exportar o relatório.');
+            return;
+        }
+        const headers = [
+            'Data', 'Horário', 'Produto', 'Vendedor', 'Categoria', 'Preço Unitário',
+            'Quantidade', 'Total Original', 'Desconto (%)', 'Total com Desconto', 'Descrição / Observação'
+        ];
+        const rows = [
+            'sep=;',
+            headers.map(csvEscape).join(';')
+        ];
+
+        inventory.forEach(product => {
+            getProductSales(product).forEach(sale => {
+                if (!isSaleInMonth(sale, selectedDate)) return;
+
+                const totals = getSaleTotals(product, sale);
+                rows.push([
+                    sale.date || sale.data || sale.saleDate || sale.dataVenda || '',
+                    sale.time || sale.hora || '',
+                    product.name,
+                    sale.seller || sale.vendedor || 'N/A',
+                    product.category || '',
+                    totals.unitPrice.toFixed(2),
+                    totals.quantity,
+                    totals.originalTotal.toFixed(2),
+                    totals.discount.toFixed(2),
+                    totals.totalWithDiscount.toFixed(2),
+                    sale.description || sale.observacao || sale.observation || ''
+                ].map(csvEscape).join(';'));
+            });
         });
-        const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
+
+        if (rows.length === 2) {
+            alert(`Nenhuma venda encontrada para ${reportMonth.value}. Verifique o mês selecionado e a data cadastrada na venda.`);
+            return;
+        }
+
+        const blob = new Blob(["\uFEFF" + rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
         const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `relatorio_${currentInventoryType}_${reportMonth.value}.csv`;
-        a.click();
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `relatorio_${currentInventoryType}_${reportMonth.value}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
         window.URL.revokeObjectURL(url);
     });
 }
