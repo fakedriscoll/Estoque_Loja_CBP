@@ -4,7 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Controle de Estoque - PCKL HOUSE</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="./style.css?v=20260928-2">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#003399">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="icon" href="img/LOGO_PCKL.jpeg" type="image/png">
@@ -66,6 +68,7 @@
                 <nav>
                     <ul>
                         <li><a href="#" class="nav-link active"><i class="fas fa-users-cog"></i> Usuários</a></li>
+                        <li><a href="#" id="btn-admin-inventory"><i class="fas fa-boxes"></i> Estoques</a></li>
                         <li><a href="#" id="btn-logout-admin" class="btn-back"><i class="fas fa-sign-out-alt"></i> Sair</a></li>
                     </ul>
                 </nav>
@@ -79,7 +82,6 @@
                         <thead>
                             <tr>
                                 <th>Usuário</th>
-                                <th>Senha</th>
                                 <th>Status</th>
                                 <th>Ações</th>
                             </tr>
@@ -99,6 +101,7 @@
                 <span class="cbp-text-large">PCKL</span>
                 <span class="sub-text-large">PCKL HOUSE - LOJA DE PICKLEBALL</span>
             </div>
+            <button id="btn-back-admin" class="selection-admin-back" type="button" style="display: none;"><i class="fas fa-users-cog"></i> Administração</button>
         </header>
 
         <main class="selection-container">
@@ -143,6 +146,8 @@
                     <ul>
                         <li><a href="#estoque" class="nav-link active"><i class="fas fa-boxes"></i> Estoque</a></li>
                         <li><a href="#relatorio" class="nav-link"><i class="fas fa-chart-bar"></i> Relatório</a></li>
+                        <li><a href="#lixeira" class="nav-link"><i class="fas fa-trash-restore"></i> Lixeira</a></li>
+                        <li><a href="#quick-sale" id="btn-quick-sale" class="quick-sale-link"><i class="fas fa-bolt"></i> Venda rápida</a></li>
                         <li><a href="#" id="btn-add-product"><i class="fas fa-plus-circle"></i> Novo Produto</a></li>
                         <li><a href="#" id="btn-back-selection" class="btn-back"><i class="fas fa-arrow-left"></i> Voltar</a></li>
                         <li><a href="#" id="btn-logout" class="btn-back"><i class="fas fa-sign-out-alt"></i> Sair</a></li>
@@ -173,26 +178,14 @@
         <h3>Total de Vendas</h3>
         <p id="total-sales">0</p>
     </div>
-    <div class="stat-card warning">
-        <h3>Reposição Prioritária</h3>
-        <p id="priority-restock-count">0</p>
+    <div class="stat-card accent-card">
+        <h3>Lucro Estimado</h3>
+        <p id="total-profit">R$ 0,00</p>
     </div>
 </section>
 
-<section class="restock-section">
-    <div class="restock-box">
-        <div class="restock-header">
-            <h3><i class="fas fa-box-open"></i> Produtos para Repor</h3>
-            <button id="btn-refresh-restock" class="btn-refresh-restock">
-                <i class="fas fa-rotate-right"></i> Atualizar
-            </button>
-        </div>
-        <div id="restock-list" class="restock-list">
-            <p class="empty-restock">Nenhum produto precisa de atenção no momento.</p>
-        </div>
-    </div>
-</section>
 
+                <div class="inventory-toolbar">
                 <section class="inventory-controls">
                     <div class="search-box">
                         <i class="fas fa-search"></i>
@@ -221,7 +214,31 @@
                             <option value="Outros">Outros</option>
                         </select>
                     </div>
+                    <div class="filter-box">
+                        <select id="status-filter" aria-label="Filtrar por status">
+                            <option value="">Todos os Status</option>
+                            <option value="ok">Estoque Normal</option>
+                            <option value="low">Estoque Baixo</option>
+                            <option value="empty">Esgotados</option>
+                        </select>
+                    </div>
+                    <div class="filter-box">
+                        <select id="sort-filter" aria-label="Ordenar produtos">
+                            <option value="name">Ordenar: Nome</option>
+                            <option value="quantity-asc">Menor quantidade</option>
+                            <option value="quantity-desc">Maior quantidade</option>
+                            <option value="price-desc">Maior preço</option>
+                            <option value="sales-desc">Mais vendidos</option>
+                        </select>
+                    </div>
+                    <div class="toolbar-actions">
+                        <button id="btn-backup" class="btn-secondary" type="button"><i class="fas fa-download"></i> Backup</button>
+                        <button id="btn-restore" class="btn-secondary" type="button"><i class="fas fa-upload"></i> Restaurar</button>
+                        <input id="restore-file" type="file" accept="application/json" hidden>
+                    </div>
                 </section>
+                </div>
+                <div id="inventory-pagination" class="inventory-pagination"></div>
 
                 <section class="inventory-table">
                     <table>
@@ -230,6 +247,7 @@
                                 <th>Produto</th>
                                 <th>Categoria</th>
                                 <th>Preço</th>
+                                <th>Custo</th>
                                 <th>Quantidade</th>
                                 <th>Vendas Mês</th>
                                 <th>Status</th>
@@ -241,6 +259,18 @@
                         </tbody>
                     </table>
                 </section>
+
+
+
+
+
+                <section class="activity-section">
+                    <div class="section-heading-row">
+                        <h3>Últimas movimentações</h3>
+                        <span class="muted-text">Entradas, vendas e ajustes recentes</span>
+                    </div>
+                    <div id="activity-list" class="activity-list"><p class="empty-state">Nenhuma movimentação registrada ainda.</p></div>
+                </section>
             </section>
 
             <!-- SEÇÃO DE RELATÓRIO -->
@@ -251,6 +281,18 @@
                     <div class="month-selector">
                         <label for="report-month">Selecionar Mês:</label>
                         <input type="month" id="report-month">
+                    </div>
+                    <div class="report-filter-group">
+                        <label for="report-seller">Vendedor</label>
+                        <select id="report-seller"><option value="">Todos</option></select>
+                    </div>
+                    <div class="report-filter-group">
+                        <label for="report-payment">Pagamento</label>
+                        <select id="report-payment"><option value="">Todos</option></select>
+                    </div>
+                    <div class="report-filter-group">
+                        <label for="report-customer">Cliente</label>
+                        <input id="report-customer" type="search" placeholder="Buscar cliente">
                     </div>
                     <button id="btn-export-report" class="btn-export">
                         <i class="fas fa-download"></i> Exportar Relatório
@@ -287,8 +329,56 @@
                             <span class="label">Ticket Médio</span>
                             <span class="value" id="report-avg-ticket">R$ 0,00</span>
                         </div>
+                        <div class="summary-item">
+                            <span class="label">Lucro Estimado</span>
+                            <span class="value" id="report-total-profit">R$ 0,00</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="label">Margem Estimada</span>
+                            <span class="value" id="report-profit-margin">0%</span>
+                        </div>
+
                     </div>
                 </div>
+                <section class="monthly-sales-section">
+                    <div class="section-heading-row">
+                        <div>
+                            <h3>Histórico de vendas do mês</h3>
+                            <span id="monthly-sales-period" class="muted-text">Vendas realizadas neste mês</span>
+                        </div>
+                        <strong id="monthly-sales-total" class="monthly-sales-total">R$ 0,00</strong>
+                    </div>
+                    <div class="sales-history-table">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Data</th>
+                                    <th>Produto</th>
+                                    <th>Vendedor</th>
+                                    <th>Cliente</th>
+                                    <th>Pagamento</th>
+                                    <th>Quantidade</th>
+                                    <th>Total</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="monthly-sales-body">
+                                <tr><td colspan="8" class="empty-state">Nenhuma venda registrada neste mês.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section id="lixeira" class="section-content trash-section" style="display: none;">
+                    <h2 class="section-title">Lixeira administrativa</h2>
+                    <p class="muted-text">Produtos e vendas removidos ficam aqui para restauração.</p>
+                    <div class="inventory-table">
+                        <table>
+                            <thead><tr><th>Tipo</th><th>Item</th><th>Removido por</th><th>Data</th><th>Ações</th></tr></thead>
+                            <tbody id="trash-body"><tr><td colspan="5" class="empty-state">Nenhum item na lixeira.</td></tr></tbody>
+                        </table>
+                    </div>
+                </section>
             </section>
         </main>
 
@@ -346,10 +436,39 @@
                             <option value="2XL">2XL</option>
                         </select>
                     </div>
+                    <div class="form-group">
+                        <label for="image-url">Imagem do produto (URL)</label>
+                        <input type="url" id="image-url" placeholder="https://..." maxlength="500">
+                        <img id="product-image-preview" class="product-image-preview" alt="Prévia do produto" style="display:none;">
+                    </div>
                     <div class="form-row">
                         <div class="form-group">
-                            <label for="price">Preço (R$)</label>
-                            <input type="number" id="price" step="0.01" required>
+                            <label for="sku">SKU / Código interno</label>
+                            <input type="text" id="sku" maxlength="40" placeholder="Ex.: RAQ-001">
+                        </div>
+                        <div class="form-group">
+                            <label for="barcode">Código de barras</label>
+                            <input type="text" id="barcode" inputmode="numeric" maxlength="30">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="price">Preço de venda (R$)</label>
+                            <input type="number" id="price" min="0" step="0.01" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="cost">Custo de compra (R$)</label>
+                            <input type="number" id="cost" min="0" step="0.01" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="supplier">Fornecedor</label>
+                            <input type="text" id="supplier" maxlength="100" placeholder="Nome do fornecedor">
+                        </div>
+                        <div class="form-group">
+                            <label for="location">Localização</label>
+                            <input type="text" id="location" maxlength="60" placeholder="Ex.: Prateleira A2">
                         </div>
                     </div>
                     <div class="form-row">
@@ -378,13 +497,14 @@
                         <label for="edit-username">Nome de Usuário</label>
                         <input type="text" id="edit-username" required placeholder="Novo nome de usuário">
                     </div>
+
                     <div class="form-group">
-                        <label for="new-password">Nova Senha (deixe em branco para não alterar)</label>
-                        <input type="password" id="new-password" minlength="6" placeholder="Mínimo 6 caracteres">
-                    </div>
-                    <div class="form-group">
-                        <label for="confirm-password">Confirmar Nova Senha</label>
-                        <input type="password" id="confirm-password" minlength="6" placeholder="Confirme a nova senha">
+                        <label for="edit-role">Nível de acesso</label>
+                        <select id="edit-role">
+                            <option value="user">Vendedor</option>
+                            <option value="manager">Gerente</option>
+                            <option value="admin">Administrador</option>
+                        </select>
                     </div>
                     <div class="form-group">
                         <label for="edit-brand">Marca Permitida (Apenas para Usuários)</label>
@@ -439,6 +559,23 @@
                             <p id="sale-total-preview" style="font-weight: bold; color: var(--success-color); margin-top: 10px;">R$ 0,00</p>
                         </div>
                     </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="sale-customer">Cliente</label>
+                            <input type="text" id="sale-customer" placeholder="Nome do cliente">
+                        </div>
+                        <div class="form-group">
+                            <label for="sale-payment">Forma de Pagamento</label>
+                            <select id="sale-payment">
+                                <option value="Não informado">Não informado</option>
+                                <option value="Dinheiro">Dinheiro</option>
+                                <option value="Pix">Pix</option>
+                                <option value="Cartão de débito">Cartão de débito</option>
+                                <option value="Cartão de crédito">Cartão de crédito</option>
+                                <option value="Transferência">Transferência</option>
+                            </select>
+                        </div>
+                    </div>
                     <div class="form-group">
                         <label for="sale-description">Descrição / Observação</label>
                         <textarea id="sale-description" placeholder="Adicione uma descrição para esta venda" rows="3" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; resize: vertical;"></textarea>
@@ -452,6 +589,19 @@
             </div>
         </div>
 
+        <div id="quick-sale-modal" class="modal">
+            <div class="modal-content quick-sale-modal-content">
+                <button type="button" id="quick-sale-close" class="close quick-sale-close" aria-label="Fechar venda rápida">&times;</button>
+                <h2><i class="fas fa-bolt"></i> Venda rápida</h2>
+                <form id="quick-sale-form">
+                    <div class="form-group"><label for="quick-sale-product">Produto</label><select id="quick-sale-product" required></select></div>
+                    <div class="form-row"><div class="form-group"><label for="quick-sale-quantity">Quantidade</label><input type="number" id="quick-sale-quantity" min="1" value="1" required></div><div class="form-group"><label for="quick-sale-payment">Pagamento</label><select id="quick-sale-payment"><option>Pix</option><option>Dinheiro</option><option>Cartão de débito</option><option>Cartão de crédito</option></select></div></div>
+                    <div class="form-group"><label for="quick-sale-customer">Cliente</label><input id="quick-sale-customer" placeholder="Opcional"></div>
+                    <button type="submit" class="btn-save">Confirmar venda</button>
+                </form>
+            </div>
+        </div>
+
         <footer>
             <p>&copy; 2026 PCKL HOUSE - Sistema de Gestão de Loja</p>
         </footer>
@@ -461,28 +611,9 @@
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 
-    <!-- Botão e Chat do Agente de IA -->
-    <div id="ai-chat-widget" class="ai-chat-widget">
-        <button id="ai-chat-toggle" class="ai-chat-toggle">
-            <i class="fas fa-robot"></i>
-            <span>Agente IA</span>
-        </button>
-        <div id="ai-chat-container" class="ai-chat-container" style="display: none;">
-            <div class="ai-chat-header">
-                <i class="fas fa-robot"></i>
-                <h3>Assistente PCKL</h3>
-                <button id="ai-chat-close"><i class="fas fa-times"></i></button>
-            </div>
-            <div id="ai-chat-messages" class="ai-chat-messages">
-                <div class="message ai-message">Olá! Sou seu assistente de gestão. Como posso ajudar com o estoque ou promoções hoje?</div>
-            </div>
-            <div class="ai-chat-input">
-                <input type="text" id="ai-user-input" placeholder="Pergunte sobre promoções...">
-                <button id="ai-send-btn"><i class="fas fa-paper-plane"></i></button>
-            </div>
-        </div>
-    </div>
 
-    <script src="script.js"></script>
+    <div id="toast-container" class="toast-container" aria-live="polite"></div>
+    <script src="./script.js?v=20260928-2"></script>
+    <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});</script>
 </body>
 </html>
