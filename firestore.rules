@@ -1,0 +1,21 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function profile() { return get(/databases/$(database)/documents/users/$(request.auth.uid)).data; }
+    function isAdmin() { return signedIn() && profile().role == 'admin' && profile().status == 'approved'; }
+    function canManage() { return isAdmin() || (signedIn() && profile().role == 'manager' && profile().status == 'approved'); }
+    function approved() { return signedIn() && profile().status == 'approved'; }
+    match /users/{uid} {
+      allow create: if signedIn() && request.auth.uid == uid && request.resource.data.role == 'user' && request.resource.data.status == 'pending';
+      allow read: if isAdmin() || (signedIn() && request.auth.uid == uid);
+      allow update, delete: if isAdmin();
+    }
+    match /inventory_loja/{productId} { allow read: if approved(); allow create, update: if canManage(); allow delete: if isAdmin(); }
+    match /inventory_vitrine/{productId} { allow read: if approved(); allow create, update: if canManage(); allow delete: if isAdmin(); }
+    match /activities_loja/{activityId} { allow read: if approved(); allow create: if approved(); allow update, delete: if isAdmin(); }
+    match /activities_vitrine/{activityId} { allow read: if approved(); allow create: if approved(); allow update, delete: if isAdmin(); }
+    match /trash_loja/{itemId} { allow read, create, update, delete: if isAdmin(); }
+    match /trash_vitrine/{itemId} { allow read, create, update, delete: if isAdmin(); }
+  }
+}

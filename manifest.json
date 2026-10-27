@@ -1,0 +1,10 @@
+{
+  "name": "PCKL House - Gestão de Estoque",
+  "short_name": "PCKL Estoque",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f3f6fa",
+  "theme_color": "#003399",
+  "description": "Sistema de gestão de estoque e vendas da PCKL House",
+  "icons": []
+}
